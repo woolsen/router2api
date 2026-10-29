@@ -277,6 +277,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    // 货架：入驻商户上架的分组，按倍率升序。M1 只读，无推荐位。
+    path: '/market',
+    name: 'Market',
+    component: () => import('@/views/user/MarketView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Market',
+      titleKey: 'market.title',
+      descriptionKey: 'market.description'
+    }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/user/ProfileView.vue'),

@@ -41,8 +41,9 @@ func TestListPlazaGroups_GroupCentricAggregation(t *testing.T) {
 		plazaPricedChannel(1, "chA", []int64{10}, "anthropic", "claude-sonnet"),
 		plazaPricedChannel(2, "chB", []int64{10}, "anthropic", "claude-opus"),
 	}
+	merchantID := int64(77)
 	groups := []Group{
-		{ID: 10, Name: "g-main", Description: "desc", Platform: "anthropic", RateMultiplier: 1},
+		{ID: 10, Name: "g-main", Description: "desc", Platform: "anthropic", RateMultiplier: 1, MerchantID: &merchantID},
 		{ID: 20, Name: "g-empty", Platform: "anthropic", RateMultiplier: 0.5},
 	}
 	svc := newPlazaService(channels, groups, nil)
@@ -51,6 +52,9 @@ func TestListPlazaGroups_GroupCentricAggregation(t *testing.T) {
 	require.Len(t, out, 1, "无模型的分组不应返回")
 	require.Equal(t, int64(10), out[0].ID)
 	require.Equal(t, "desc", out[0].Description)
+	// 商户归属必须透传：货架依赖它过滤掉平台自营分组。
+	require.NotNil(t, out[0].MerchantID)
+	require.Equal(t, int64(77), *out[0].MerchantID)
 	require.Len(t, out[0].Models, 2)
 	// 组内模型按名称排序
 	require.Equal(t, "claude-opus", out[0].Models[0].Name)

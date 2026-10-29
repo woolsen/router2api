@@ -1201,12 +1201,14 @@
 <script setup lang="ts">
 	import { ref, reactive, computed, watch, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
+	import { useRoute } from 'vue-router'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
 const { t } = useI18n()
+const route = useRoute()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -1646,6 +1648,25 @@ const loadGroups = async () => {
   }
 }
 
+// 货架「使用」深链：/keys?group_id=N 预选分组并打开创建弹窗。
+// 分组不在当前用户可绑定列表（已下架或无权限）时不打开弹窗，避免提交必然失败的请求。
+const applyMarketGroupQuery = () => {
+  const raw = route.query.group_id
+  const value = Array.isArray(raw) ? raw[0] : raw
+  const groupID = Number(value)
+  if (!value || !Number.isInteger(groupID) || groupID <= 0) return
+
+  const group = groups.value.find((item) => item.id === groupID)
+  if (!group) {
+    appStore.showError(t('market.groupUnavailable'))
+    return
+  }
+
+  createProvider.value = getKeyGroupProvider(group.platform)
+  formData.value.group_id = group.id
+  showCreateModal.value = true
+}
+
 const loadUserGroupRates = async () => {
   try {
     userGroupRates.value = await userGroupsAPI.getUserGroupRates()
@@ -2081,7 +2102,7 @@ function formatResetTime(resetAt: string | null): string {
 onMounted(() => {
   loadSavedColumns()
   loadApiKeys()
-  loadGroups()
+  loadGroups().then(applyMarketGroupQuery)
   loadUserGroupRates()
   loadPublicSettings()
   document.addEventListener('click', closeGroupSelector)

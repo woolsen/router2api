@@ -49,6 +49,9 @@ type PlazaGroup struct {
 	PeakEnd            string
 	PeakRateMultiplier float64
 	IsExclusive        bool
+	// MerchantID 是该分组归属的入驻商户；nil 表示平台自营分组。仅供服务端过滤
+	// （如货架只上架商户分组），不得映射到任何对外 DTO。
+	MerchantID *int64
 	// 图片按次实付倍率：ImageRateIndependent 为 true 时，图片计费模型的实付
 	// = 档位价 × ImageRateMultiplier，不乘分组/用户专属倍率（与计费口径一致）。
 	ImageRateIndependent bool
@@ -135,6 +138,7 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 			PeakEnd:                   g.PeakEnd,
 			PeakRateMultiplier:        g.PeakRateMultiplier,
 			IsExclusive:               g.IsExclusive,
+			MerchantID:                g.MerchantID,
 			ImageRateIndependent:      g.ImageRateIndependent,
 			ImageRateMultiplier:       g.ImageRateMultiplier,
 			VideoRateIndependent:      g.VideoRateIndependent,

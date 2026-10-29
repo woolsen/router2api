@@ -653,6 +653,27 @@ export default {
     }
   },
 
+  // 货架：入驻商户上架的分组，按倍率升序；M1 无指标数据源，stats 恒为 null。
+  market: {
+    title: '货架',
+    description: '入驻商户提供的分组，按倍率从低到高排序',
+    loadFailed: '货架加载失败',
+    retry: '重试',
+    empty: '暂无商户分组',
+    emptyDesc: '商户上架分组后会显示在这里',
+    rate: '倍率',
+    models: '模型（{count}）',
+    noModels: '未配置模型',
+    use: '使用',
+    insufficient: '数据不足',
+    groupUnavailable: '该分组当前不可用于你的账号',
+    metrics: {
+      requests: '请求量',
+      successRate: '成功率',
+      latency: '平均耗时'
+    }
+  },
+
   // Model Plaza (public group/model pricing showcase)
   modelPlaza: {
     title: '模型广场',

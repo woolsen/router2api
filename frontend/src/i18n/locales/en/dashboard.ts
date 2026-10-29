@@ -648,6 +648,28 @@ export default {
     }
   },
 
+  // Market（货架）: merchant groups you can pick, sorted by rate.
+  // M1 has no metrics source, so stats is always null and the UI says "Not enough data".
+  market: {
+    title: 'Market',
+    description: 'Groups offered by merchants, sorted by rate',
+    loadFailed: 'Failed to load the market',
+    retry: 'Retry',
+    empty: 'No merchant groups yet',
+    emptyDesc: 'Groups will appear here once merchants list them',
+    rate: 'Rate',
+    models: 'Models ({count})',
+    noModels: 'No models configured',
+    use: 'Use',
+    insufficient: 'Not enough data',
+    groupUnavailable: 'This group is not available for your account',
+    metrics: {
+      requests: 'Requests',
+      successRate: 'Success rate',
+      latency: 'Latency'
+    }
+  },
+
   // Model Plaza (public group/model pricing showcase)
   modelPlaza: {
     title: 'Model Plaza',

@@ -160,6 +160,12 @@ func ProvideBatchImageHandler(
 	return h
 }
 
+// ProvideMarketGroupsHandler 把模型广场服务适配成货架数据源。
+// 货架与 /model-plaza 共用渠道 SupportedModels 的模型枚举，不另建模型清单。
+func ProvideMarketGroupsHandler(plaza *service.ModelPlazaService) *MarketGroupsHandler {
+	return NewMarketGroupsHandler(plaza)
+}
+
 // ProvideSystemHandler creates admin.SystemHandler with UpdateService
 func ProvideSystemHandler(updateService *service.UpdateService, lockService *service.SystemOperationLockService) *admin.SystemHandler {
 	return admin.NewSystemHandler(updateService, lockService)
@@ -202,6 +208,7 @@ func ProvideHandlers(
 	paymentWebhookHandler *PaymentWebhookHandler,
 	availableChannelHandler *AvailableChannelHandler,
 	modelPlazaHandler *ModelPlazaHandler,
+	marketGroupsHandler *MarketGroupsHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
 	_ *service.IdempotencyCoordinator,
@@ -228,6 +235,7 @@ func ProvideHandlers(
 		PaymentWebhook:   paymentWebhookHandler,
 		AvailableChannel: availableChannelHandler,
 		ModelPlaza:       modelPlazaHandler,
+		Market:           marketGroupsHandler,
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
 	}
@@ -254,6 +262,7 @@ var ProviderSet = wire.NewSet(
 	NewPaymentWebhookHandler,
 	NewAvailableChannelHandler,
 	NewModelPlazaHandler,
+	ProvideMarketGroupsHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
 
