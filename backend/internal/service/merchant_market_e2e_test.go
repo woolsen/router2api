@@ -101,8 +101,17 @@ func TestMarketE2E(t *testing.T) {
 	merchantSvc := service.NewMerchantService(merchantRepo)
 	onboardingSvc := service.NewMerchantOnboardingService(merchantSvc, onboardingAccountRepo, groupRepo)
 
-	// 1) 建商户（抽成 8%），绑一个平台为 openai 的市场分组。
-	commission := 0.08
+	// 网关/认证服务共用配置：标准计费模式；fake 上游是 http://127.0.0.1，
+	// 生产里接内网中转站同样需要管理员显式放开 allow_insecure_http。
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	cfg.Default.RateMultiplier = 1
+	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
+
+	// 1) 建商户（抽成故意取非默认的 12.5%），绑一个平台为 openai 的市场分组。
+	// 用非默认值是关键：若实现把所有商户都按 MerchantDefaultCommissionRate(8%) 计费，
+	// 下面 usage_logs/结算的断言必须失败。
+	const snapshotCommission = 0.125
+	commission := snapshotCommission
 	merchant, err := merchantSvc.Create(ctx, service.CreateMerchantInput{
 		Name:           "E2E Merchant",
 		Contact:        "e2e@merchant.test",
@@ -161,17 +170,21 @@ func TestMarketE2E(t *testing.T) {
 	}
 	require.NoError(t, apiKeyRepo.Create(ctx, key))
 
-	loadedKey, err := apiKeyRepo.GetByID(ctx, key.ID)
+	// 4) 认证链路：用明文 key 经 APIKeyService → GetByKeyForAuth → 认证快照往返，
+	// 拿到 apiKey 及其分组（merchant_id 必须从 groups 表真实带出）。
+	// 这一段替代手工取 key，证明 key → 组 → merchant_id 的认证投影没有漏列。
+	apiKeySvc := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, userGroupRateRepo, nil, cfg)
+	loadedKey, authenticatedUser, err := apiKeySvc.ValidateKey(ctx, key.Key)
 	require.NoError(t, err)
+	require.NotNil(t, loadedKey)
+	require.NotNil(t, authenticatedUser)
 	require.NotNil(t, loadedKey.Group)
-	require.NotNil(t, loadedKey.User)
+	require.NotNil(t, loadedKey.Group.MerchantID, "认证快照必须带出分组所属商户")
+	require.Equal(t, merchant.ID, *loadedKey.Group.MerchantID)
+	require.Equal(t, user.ID, authenticatedUser.ID)
+	require.Equal(t, group.ID, *loadedKey.GroupID)
 
 	// ---- 网关：真实仓储 + 固定回退价格表（gpt-5.4 = $2.5/$15 per MTok）----
-	cfg := &config.Config{RunMode: config.RunModeStandard}
-	cfg.Default.RateMultiplier = 1
-	// fake 商户上游是 httptest 的 http://127.0.0.1，网关默认只接受 https；
-	// 生产里接内网中转站同样需要管理员显式放开这一项。
-	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 	gateway := service.NewOpenAIGatewayService(
 		accountRepo,
 		usageLogRepo,
@@ -198,7 +211,7 @@ func TestMarketE2E(t *testing.T) {
 		merchantRepo,
 	)
 
-	// 4) 发一条 /v1/chat/completions（stream），确认上游收到商户凭证。
+	// 5) 发一条 /v1/chat/completions（stream），确认上游收到商户凭证。
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	ginCtx, _ := gin.CreateTestContext(recorder)
@@ -222,7 +235,7 @@ func TestMarketE2E(t *testing.T) {
 	require.Contains(t, got.Body, `"gpt-5.4"`)
 	t.Logf("[market-e2e] upstream: POST %s Authorization=%q", got.Path, got.Authorization)
 
-	// 5) 记录用量：真实写入 usage_logs 并扣减余额。
+	// 6) 记录用量：真实写入 usage_logs 并扣减余额。
 	require.NoError(t, gateway.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 		Result:           forwardResult,
 		APIKey:           loadedKey,
@@ -237,11 +250,17 @@ func TestMarketE2E(t *testing.T) {
 		Where(usagelog.APIKeyIDEQ(loadedKey.ID)).
 		Only(ctx)
 	require.NoError(t, err)
-	require.Greater(t, usageLog.ActualCost, 0.0, "actual_cost 必须由价格表算出")
+	// token 与模型都由 fake 上游固定：1000 × $2.5/MTok + 500 × $15/MTok = $0.01。
+	// 断言具体金额，避免「价格表返回 0 也通过」。
+	const wantActualCost = 0.01
+	require.InDelta(t, wantActualCost, usageLog.ActualCost, 1e-9,
+		"actual_cost 应为 %.8f，实际 %.8f（input_tokens=%d output_tokens=%d model=%s）",
+		wantActualCost, usageLog.ActualCost, usageLog.InputTokens, usageLog.OutputTokens, usageLog.Model)
 	require.NotNil(t, usageLog.MerchantID)
 	require.Equal(t, merchant.ID, *usageLog.MerchantID, "usage_logs 必须快照 merchant_id")
 	require.NotNil(t, usageLog.CommissionRate)
-	require.InDelta(t, commission, *usageLog.CommissionRate, 1e-12, "usage_logs 必须快照 commission_rate")
+	require.InDelta(t, snapshotCommission, *usageLog.CommissionRate, 1e-12,
+		"usage_logs 必须按写入当时的商户费率快照 commission_rate（非默认 8%%）")
 
 	reloadedUser, err := userRepo.GetByID(ctx, user.ID)
 	require.NoError(t, err)
@@ -251,7 +270,15 @@ func TestMarketE2E(t *testing.T) {
 		usageLog.ID, usageLog.ActualCost, *usageLog.MerchantID, *usageLog.CommissionRate)
 	t.Logf("[market-e2e] balance: %.8f -> %.8f (delta=%.8f)", 100.0, reloadedUser.Balance, 100.0-reloadedUser.Balance)
 
-	// 6) 结算：把用量挪进一个已经封账的自然周，按周生成结算单。
+	// 写时快照的关键证明：写完之后把商户费率改成 30%，结算仍必须按 12.5% 计算。
+	const newCommission = 0.30
+	require.NoError(t, merchantSvc.SetCommissionRate(ctx, merchant.ID, newCommission))
+	reloadedMerchant, err := merchantSvc.Get(ctx, merchant.ID)
+	require.NoError(t, err)
+	require.InDelta(t, newCommission, reloadedMerchant.CommissionRate, 1e-12,
+		"商户当前费率必须已改为 %.2f", newCommission)
+
+	// 7) 结算：把用量挪进一个已经封账的自然周，按周生成结算单。
 	weekEnd := startOfUTCWeek(time.Now()).AddDate(0, 0, -7)
 	weekStart := weekEnd.AddDate(0, 0, -7)
 	// usage_logs.created_at 在 ent 模型里不可变，按集成测试惯例用原生 SQL 把这条
@@ -267,8 +294,10 @@ func TestMarketE2E(t *testing.T) {
 	require.NotNil(t, settlement)
 	require.Equal(t, service.SettlementStatusPending, settlement.Status)
 	require.InDelta(t, usageLog.ActualCost, settlement.GrossCost, 1e-9)
-	require.InDelta(t, settlement.GrossCost*commission, settlement.Commission, 1e-9)
-	require.InDelta(t, settlement.GrossCost*(1-commission), settlement.NetPayable, 1e-9)
+	require.InDelta(t, settlement.GrossCost*snapshotCommission, settlement.Commission, 1e-9,
+		"结算必须按 usage_logs 的 12.5%% 快照抽成，而不是商户当前费率 %.2f", newCommission)
+	require.InDelta(t, settlement.GrossCost*(1-snapshotCommission), settlement.NetPayable, 1e-9,
+		"net = gross × (1 - 写入时快照费率)")
 	t.Logf("[market-e2e] settlement: id=%d period=[%s,%s) gross=%.8f commission=%.8f net=%.8f",
 		settlement.ID,
 		weekStart.Format(time.RFC3339), weekEnd.Format(time.RFC3339),
