@@ -24,6 +24,7 @@ import (
 	"github.com/woolsen/router2api/ent/group"
 	"github.com/woolsen/router2api/ent/idempotencyrecord"
 	"github.com/woolsen/router2api/ent/identityadoptiondecision"
+	"github.com/woolsen/router2api/ent/merchant"
 	"github.com/woolsen/router2api/ent/paymentauditlog"
 	"github.com/woolsen/router2api/ent/paymentorder"
 	"github.com/woolsen/router2api/ent/paymentproviderinstance"
@@ -1307,6 +1308,57 @@ func init() {
 	identityadoptiondecisionDescDecidedAt := identityadoptiondecisionFields[4].Descriptor()
 	// identityadoptiondecision.DefaultDecidedAt holds the default value on creation for the decided_at field.
 	identityadoptiondecision.DefaultDecidedAt = identityadoptiondecisionDescDecidedAt.Default.(func() time.Time)
+	merchantMixin := schema.Merchant{}.Mixin()
+	merchantMixinHooks1 := merchantMixin[1].Hooks()
+	merchant.Hooks[0] = merchantMixinHooks1[0]
+	merchantMixinInters1 := merchantMixin[1].Interceptors()
+	merchant.Interceptors[0] = merchantMixinInters1[0]
+	merchantMixinFields0 := merchantMixin[0].Fields()
+	_ = merchantMixinFields0
+	merchantFields := schema.Merchant{}.Fields()
+	_ = merchantFields
+	// merchantDescCreatedAt is the schema descriptor for created_at field.
+	merchantDescCreatedAt := merchantMixinFields0[0].Descriptor()
+	// merchant.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchant.DefaultCreatedAt = merchantDescCreatedAt.Default.(func() time.Time)
+	// merchantDescUpdatedAt is the schema descriptor for updated_at field.
+	merchantDescUpdatedAt := merchantMixinFields0[1].Descriptor()
+	// merchant.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	merchant.DefaultUpdatedAt = merchantDescUpdatedAt.Default.(func() time.Time)
+	// merchant.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	merchant.UpdateDefaultUpdatedAt = merchantDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// merchantDescName is the schema descriptor for name field.
+	merchantDescName := merchantFields[0].Descriptor()
+	// merchant.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	merchant.NameValidator = func() func(string) error {
+		validators := merchantDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// merchantDescContact is the schema descriptor for contact field.
+	merchantDescContact := merchantFields[1].Descriptor()
+	// merchant.ContactValidator is a validator for the "contact" field. It is called by the builders before save.
+	merchant.ContactValidator = merchantDescContact.Validators[0].(func(string) error)
+	// merchantDescStatus is the schema descriptor for status field.
+	merchantDescStatus := merchantFields[2].Descriptor()
+	// merchant.DefaultStatus holds the default value on creation for the status field.
+	merchant.DefaultStatus = merchantDescStatus.Default.(string)
+	// merchant.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	merchant.StatusValidator = merchantDescStatus.Validators[0].(func(string) error)
+	// merchantDescCommissionRate is the schema descriptor for commission_rate field.
+	merchantDescCommissionRate := merchantFields[3].Descriptor()
+	// merchant.DefaultCommissionRate holds the default value on creation for the commission_rate field.
+	merchant.DefaultCommissionRate = merchantDescCommissionRate.Default.(float64)
 	paymentauditlogFields := schema.PaymentAuditLog{}.Fields()
 	_ = paymentauditlogFields
 	// paymentauditlogDescOrderID is the schema descriptor for order_id field.

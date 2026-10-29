@@ -130,6 +130,9 @@ func RegisterAdminRoutes(
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 
+		// 入驻商户（中转站）管理
+		registerMerchantRoutes(admin, h)
+
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
 	}
@@ -148,6 +151,16 @@ func registerPromptAuditRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		promptAudit.POST("/events/batch-delete", h.Admin.PromptAudit.BatchDelete)
 		promptAudit.POST("/events/delete-preview", h.Admin.PromptAudit.DeletePreview)
 		promptAudit.POST("/events/delete-by-filter", h.Admin.PromptAudit.DeleteByFilter)
+	}
+}
+
+func registerMerchantRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	merchants := admin.Group("/merchants")
+	{
+		merchants.GET("", h.Admin.Merchant.List)
+		merchants.POST("", h.Admin.Merchant.Create)
+		merchants.GET("/:id", h.Admin.Merchant.Get)
+		merchants.PATCH("/:id/commission", h.Admin.Merchant.UpdateCommission)
 	}
 }
 

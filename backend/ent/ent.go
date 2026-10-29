@@ -31,6 +31,7 @@ import (
 	"github.com/woolsen/router2api/ent/group"
 	"github.com/woolsen/router2api/ent/idempotencyrecord"
 	"github.com/woolsen/router2api/ent/identityadoptiondecision"
+	"github.com/woolsen/router2api/ent/merchant"
 	"github.com/woolsen/router2api/ent/paymentauditlog"
 	"github.com/woolsen/router2api/ent/paymentorder"
 	"github.com/woolsen/router2api/ent/paymentproviderinstance"
@@ -130,6 +131,7 @@ func checkColumn(t, c string) error {
 			group.Table:                         group.ValidColumn,
 			idempotencyrecord.Table:             idempotencyrecord.ValidColumn,
 			identityadoptiondecision.Table:      identityadoptiondecision.ValidColumn,
+			merchant.Table:                      merchant.ValidColumn,
 			paymentauditlog.Table:               paymentauditlog.ValidColumn,
 			paymentorder.Table:                  paymentorder.ValidColumn,
 			paymentproviderinstance.Table:       paymentproviderinstance.ValidColumn,
