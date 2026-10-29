@@ -16,8 +16,8 @@ const (
 )
 
 var (
-	ErrMerchantNotActive       = infraerrors.Forbidden("MERCHANT_NOT_ACTIVE", "merchant is not active")
-	ErrPlatformMismatch        = infraerrors.BadRequest("PLATFORM_MISMATCH", "merchant group platform is unsupported or does not match the upstream platform")
+	ErrMerchantNotActive      = infraerrors.Forbidden("MERCHANT_NOT_ACTIVE", "merchant is not active")
+	ErrPlatformMismatch       = infraerrors.BadRequest("PLATFORM_MISMATCH", "merchant group platform is unsupported or does not match the upstream platform")
 	ErrMerchantGroupOwnership = infraerrors.Forbidden("MERCHANT_GROUP_OWNERSHIP", "group does not belong to this merchant")
 )
 
@@ -38,9 +38,13 @@ type AttachGroupInput struct {
 
 // MerchantOnboardingAccountRepository 是接入流程所需的最小账号仓储能力。
 type MerchantOnboardingAccountRepository interface {
-	ListByGroup(ctx context.Context, groupID int64) ([]Account, error)
+	// GetMerchantGroupAccount 按 (merchant_id, group_id) 查已有账号，不按状态过滤。
+	GetMerchantGroupAccount(ctx context.Context, merchantID, groupID int64) (*Account, error)
 	CreateWithAccountGroups(ctx context.Context, account *Account, groups []AccountGroup) error
 	Update(ctx context.Context, account *Account) error
+	// WithMerchantGroupLock 在 (merchant_id, group_id) 的事务级锁内执行 fn，
+	// 串行化“查重 + 创建”，避免并发接入产生重复账号。
+	WithMerchantGroupLock(ctx context.Context, merchantID, groupID int64, fn func(context.Context) error) error
 }
 
 // MerchantOnboardingGroupRepository 是接入流程所需的最小分组仓储能力。
@@ -95,53 +99,65 @@ func (s *MerchantOnboardingService) AttachGroup(ctx context.Context, in AttachGr
 		return nil, ErrMerchantGroupOwnership
 	}
 
-	account, err := s.findMerchantAccount(ctx, group.ID, in.MerchantID)
+	account, err := s.attachLocked(ctx, merchant, group, in)
 	if err != nil {
 		return nil, err
-	}
-	if account != nil {
-		if account.Credentials == nil {
-			account.Credentials = make(map[string]any, 2)
-		}
-		account.Credentials["base_url"] = in.BaseURL
-		account.Credentials["api_key"] = in.APIKey
-		if err := s.accountRepo.Update(ctx, account); err != nil {
-			return nil, fmt.Errorf("update merchant upstream account: %w", err)
-		}
-		return account, nil
-	}
-
-	merchantID := in.MerchantID
-	account = &Account{
-		Name:        merchantAccountName(merchant.Name),
-		Platform:    in.Platform,
-		Type:        AccountTypeAPIKey,
-		Credentials: map[string]any{"base_url": in.BaseURL, "api_key": in.APIKey},
-		Status:      StatusActive,
-		Schedulable: true,
-		MerchantID:  &merchantID,
-	}
-	// 账号倍率保持默认 1.0：用户侧扣费只认 group.rate_multiplier，
-	// 商户抽成在结算时按 usage_logs 快照计算。
-	if err := s.accountRepo.CreateWithAccountGroups(ctx, account, []AccountGroup{
-		{GroupID: group.ID, Priority: merchantUpstreamGroupPriority},
-	}); err != nil {
-		return nil, fmt.Errorf("create merchant upstream account: %w", err)
 	}
 	return account, nil
 }
 
-func (s *MerchantOnboardingService) findMerchantAccount(ctx context.Context, groupID, merchantID int64) (*Account, error) {
-	accounts, err := s.accountRepo.ListByGroup(ctx, groupID)
-	if err != nil {
-		return nil, fmt.Errorf("list group accounts: %w", err)
-	}
-	for i := range accounts {
-		if accounts[i].MerchantID != nil && *accounts[i].MerchantID == merchantID {
-			return &accounts[i], nil
+// attachLocked 在 (merchant_id, group_id) 事务级锁内完成查重与创建/更新，
+// 避免并发接入产生第二个账号。查重不按账号状态过滤：error/disabled 的旧账号
+// 仍必须复用，否则商户轮换 key 时会新建账号并把上游流量翻倍。
+func (s *MerchantOnboardingService) attachLocked(
+	ctx context.Context,
+	merchant *Merchant,
+	group *Group,
+	in AttachGroupInput,
+) (*Account, error) {
+	var result *Account
+	err := s.accountRepo.WithMerchantGroupLock(ctx, in.MerchantID, group.ID, func(lockCtx context.Context) error {
+		account, err := s.accountRepo.GetMerchantGroupAccount(lockCtx, in.MerchantID, group.ID)
+		if err != nil {
+			return fmt.Errorf("get merchant upstream account: %w", err)
 		}
+		if account != nil {
+			if account.Credentials == nil {
+				account.Credentials = make(map[string]any, 2)
+			}
+			account.Credentials["base_url"] = in.BaseURL
+			account.Credentials["api_key"] = in.APIKey
+			if err := s.accountRepo.Update(lockCtx, account); err != nil {
+				return fmt.Errorf("update merchant upstream account: %w", err)
+			}
+			result = account
+			return nil
+		}
+
+		merchantID := in.MerchantID
+		account = &Account{
+			Name:        merchantAccountName(merchant.Name),
+			Platform:    in.Platform,
+			Type:        AccountTypeAPIKey,
+			Credentials: map[string]any{"base_url": in.BaseURL, "api_key": in.APIKey},
+			Status:      StatusActive,
+			Schedulable: true,
+			MerchantID:  &merchantID,
+		}
+		// 账号倍率保持默认 1.0：用户侧扣费只认 group.rate_multiplier，
+		// 商户抽成在结算时按 usage_logs 快照计算。
+		if err := s.accountRepo.CreateWithAccountGroups(lockCtx, account, []AccountGroup{
+			{GroupID: group.ID, Priority: merchantUpstreamGroupPriority},
+		}); err != nil {
+			return fmt.Errorf("create merchant upstream account: %w", err)
+		}
+		result = account
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	return nil, nil
+	return result, nil
 }
 
 func merchantAccountName(merchantName string) string {

@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -215,6 +216,9 @@ func (r *accountRepository) CreateWithAccountGroups(ctx context.Context, account
 	if account == nil {
 		return service.ErrAccountNilInput
 	}
+	if scoped := r.accountTransactionScope(ctx); scoped != r {
+		return scoped.CreateWithAccountGroups(ctx, account, groups)
+	}
 	tx, err := r.client.Tx(ctx)
 	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
 		return err
@@ -263,6 +267,74 @@ func (r *accountRepository) CreateWithAccountGroups(ctx context.Context, account
 		if err := tx.Commit(); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// GetMerchantGroupAccount 返回商户在指定分组下的上游账号。
+//
+// 查重刻意不按账号状态过滤：上游 key 失效后网关会把账号置为 error/disabled，
+// 商户轮换 key 时必须复用旧账号，否则会新建第二个账号并追加第二条绑定。
+// 软删除的账号视为已移除，不返回（允许重新创建）。
+func (r *accountRepository) GetMerchantGroupAccount(ctx context.Context, merchantID, groupID int64) (*service.Account, error) {
+	if scoped := r.accountTransactionScope(ctx); scoped != r {
+		return scoped.GetMerchantGroupAccount(ctx, merchantID, groupID)
+	}
+	accounts, err := r.queryAccountsByGroup(ctx, groupID, accountGroupQueryOptions{merchantID: &merchantID})
+	if err != nil {
+		return nil, err
+	}
+	for i := range accounts {
+		if accounts[i].MerchantID != nil && *accounts[i].MerchantID == merchantID {
+			return &accounts[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// WithMerchantGroupLock 在事务内持有 (merchant_id, group_id) 的事务级
+// PostgreSQL advisory lock，串行化“查重 + 创建”。唯一性跨 accounts 与
+// account_groups 两张表，无法用单表唯一索引表达，因此用锁而不是约束。
+func (r *accountRepository) WithMerchantGroupLock(
+	ctx context.Context,
+	merchantID int64,
+	groupID int64,
+	fn func(context.Context) error,
+) error {
+	if fn == nil {
+		return nil
+	}
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		if err := lockMerchantGroupOnboarding(ctx, tx.Client(), merchantID, groupID); err != nil {
+			return err
+		}
+		return fn(ctx)
+	}
+
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	txCtx := dbent.NewTxContext(ctx, tx)
+	if err := lockMerchantGroupOnboarding(txCtx, tx.Client(), merchantID, groupID); err != nil {
+		return err
+	}
+	if err := fn(txCtx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func lockMerchantGroupOnboarding(ctx context.Context, client *dbent.Client, merchantID, groupID int64) error {
+	if _, err := client.ExecContext(
+		ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended('merchant_onboarding:' || $1::text || ':' || $2::text, 0))`,
+		merchantID,
+		groupID,
+	); err != nil {
+		return fmt.Errorf("lock merchant onboarding: %w", err)
 	}
 	return nil
 }
@@ -3364,6 +3436,7 @@ type accountGroupQueryOptions struct {
 	schedulable          bool
 	ignoreTransientState bool
 	platforms            []string // 允许的多个平台，空切片表示不进行平台过滤
+	merchantID           *int64   // 非 nil 时只返回该商户的账号
 }
 
 func (r *accountRepository) queryAccountsByGroup(ctx context.Context, groupID int64, opts accountGroupQueryOptions) ([]service.Account, error) {
@@ -3378,6 +3451,9 @@ func (r *accountRepository) queryAccountsByGroup(ctx context.Context, groupID in
 	}
 	if len(opts.platforms) > 0 {
 		preds = append(preds, dbaccount.PlatformIn(opts.platforms...))
+	}
+	if opts.merchantID != nil {
+		preds = append(preds, dbaccount.MerchantIDEQ(*opts.merchantID))
 	}
 	if opts.schedulable {
 		preds = append(preds, dbaccount.SchedulableEQ(true))
