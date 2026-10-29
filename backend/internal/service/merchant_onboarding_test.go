@@ -382,46 +382,95 @@ func TestAttachGroupRejectsForeignGroup(t *testing.T) {
 	}
 }
 
-func TestAttachGroupReusesNonActiveAccount(t *testing.T) {
-	for _, status := range []string{StatusError, StatusDisabled} {
-		t.Run(status, func(t *testing.T) {
-			ctx := context.Background()
-			f := newOnboardingFixture(t, nil)
-			merchantID := f.merchant.ID
-			f.accounts.seed(&Account{
-				ID:          99,
-				Name:        "merchant:" + f.merchant.Name,
-				Platform:    PlatformOpenAI,
-				Type:        AccountTypeAPIKey,
-				Credentials: map[string]any{"base_url": "https://old.example.com/v1", "api_key": "sk-old"},
-				Status:      status,
-				Schedulable: false,
-				MerchantID:  &merchantID,
-			}, 7)
+func TestAttachGroupRecoversErrorAccount(t *testing.T) {
+	ctx := context.Background()
+	f := newOnboardingFixture(t, nil)
+	merchantID := f.merchant.ID
+	f.accounts.seed(&Account{
+		ID:           99,
+		Name:         "merchant:" + f.merchant.Name,
+		Platform:     PlatformOpenAI,
+		Type:         AccountTypeAPIKey,
+		Credentials:  map[string]any{"base_url": "https://old.example.com/v1", "api_key": "sk-old"},
+		Status:       StatusError,
+		ErrorMessage: "upstream key invalid",
+		Schedulable:  false,
+		MerchantID:   &merchantID,
+	}, 7)
 
-			acc, err := f.svc.AttachGroup(ctx, AttachGroupInput{
-				MerchantID: f.merchant.ID,
-				GroupID:    7,
-				BaseURL:    "https://up.example.com/v1",
-				APIKey:     "sk-new",
-				Platform:   PlatformOpenAI,
-			})
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if acc.ID != 99 {
-				t.Fatalf("must reuse the %s account, got new account %d", status, acc.ID)
-			}
-			if got := acc.Credentials["api_key"]; got != "sk-new" {
-				t.Fatalf("key not rotated, got %v", got)
-			}
-			if got := f.accounts.createCount(); got != 0 {
-				t.Fatalf("must not create a second account, got %d creates", got)
-			}
-			if got := f.accounts.bindingCount(7); got != 1 {
-				t.Fatalf("must not add a second binding, got %d", got)
-			}
-		})
+	acc, err := f.svc.AttachGroup(ctx, AttachGroupInput{
+		MerchantID: f.merchant.ID,
+		GroupID:    7,
+		BaseURL:    "https://up.example.com/v1",
+		APIKey:     "sk-new",
+		Platform:   PlatformOpenAI,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if acc.ID != 99 {
+		t.Fatalf("must reuse the error account, got new account %d", acc.ID)
+	}
+	if got := acc.Credentials["api_key"]; got != "sk-new" {
+		t.Fatalf("key not rotated, got %v", got)
+	}
+	if acc.Status != StatusActive {
+		t.Fatalf("want recovered status %s, got %s", StatusActive, acc.Status)
+	}
+	if !acc.Schedulable {
+		t.Fatal("recovered account must be schedulable")
+	}
+	if acc.ErrorMessage != "" {
+		t.Fatalf("want cleared error message, got %q", acc.ErrorMessage)
+	}
+	if got := f.accounts.createCount(); got != 0 {
+		t.Fatalf("must not create a second account, got %d creates", got)
+	}
+	if got := f.accounts.bindingCount(7); got != 1 {
+		t.Fatalf("must not add a second binding, got %d", got)
+	}
+}
+
+func TestAttachGroupReportsDisabledAccount(t *testing.T) {
+	ctx := context.Background()
+	f := newOnboardingFixture(t, nil)
+	merchantID := f.merchant.ID
+	f.accounts.seed(&Account{
+		ID:           99,
+		Name:         "merchant:" + f.merchant.Name,
+		Platform:     PlatformOpenAI,
+		Type:         AccountTypeAPIKey,
+		Credentials:  map[string]any{"base_url": "https://old.example.com/v1", "api_key": "sk-old"},
+		Status:       StatusDisabled,
+		ErrorMessage: "disabled by admin",
+		Schedulable:  false,
+		MerchantID:   &merchantID,
+	}, 7)
+
+	acc, err := f.svc.AttachGroup(ctx, AttachGroupInput{
+		MerchantID: f.merchant.ID,
+		GroupID:    7,
+		BaseURL:    "https://up.example.com/v1",
+		APIKey:     "sk-new",
+		Platform:   PlatformOpenAI,
+	})
+	if !errors.Is(err, ErrMerchantAccountDisabled) {
+		t.Fatalf("want ErrMerchantAccountDisabled, got %v", err)
+	}
+	if acc == nil || acc.ID != 99 {
+		t.Fatalf("want the reused disabled account 99, got %+v", acc)
+	}
+	if acc.Status != StatusDisabled {
+		t.Fatalf("disabled is an admin decision, want %s, got %s", StatusDisabled, acc.Status)
+	}
+	if got := acc.Credentials["api_key"]; got != "sk-new" {
+		t.Fatalf("key not rotated, got %v", got)
+	}
+	if got := f.accounts.createCount(); got != 0 {
+		t.Fatalf("must not create a second account, got %d creates", got)
+	}
+	if got := f.accounts.bindingCount(7); got != 1 {
+		t.Fatalf("must not add a second binding, got %d", got)
 	}
 }
 

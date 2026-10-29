@@ -19,6 +19,9 @@ var (
 	ErrMerchantNotActive      = infraerrors.Forbidden("MERCHANT_NOT_ACTIVE", "merchant is not active")
 	ErrPlatformMismatch       = infraerrors.BadRequest("PLATFORM_MISMATCH", "merchant group platform is unsupported or does not match the upstream platform")
 	ErrMerchantGroupOwnership = infraerrors.Forbidden("MERCHANT_GROUP_OWNERSHIP", "group does not belong to this merchant")
+	// ErrMerchantAccountDisabled 表示凭证已轮换，但账号仍被管理员禁用。
+	// 调用方必须显式提示，否则接口成功却永远不会被调度。
+	ErrMerchantAccountDisabled = infraerrors.Conflict("MERCHANT_ACCOUNT_DISABLED", "merchant upstream account is disabled; re-enable it before attaching")
 )
 
 // merchantOnboardingPlatforms 是允许接入的商户上游平台。
@@ -75,6 +78,9 @@ func NewMerchantOnboardingService(
 //
 // 幂等语义：同一 (merchant_id, group_id) 再次调用时原地轮换
 // Credentials["base_url"] 与 Credentials["api_key"]，不会新建账号。
+// error 账号在轮换凭证时一并恢复为 active 且可调度；disabled 账号保持禁用，
+// 但返回非 nil 的 ErrMerchantAccountDisabled（账号对象仍返回，凭证已更新），
+// 避免调用方看到成功却永远调度不到流量。
 func (s *MerchantOnboardingService) AttachGroup(ctx context.Context, in AttachGroupInput) (*Account, error) {
 	merchant, err := s.merchants.Get(ctx, in.MerchantID)
 	if err != nil {
@@ -99,11 +105,8 @@ func (s *MerchantOnboardingService) AttachGroup(ctx context.Context, in AttachGr
 		return nil, ErrMerchantGroupOwnership
 	}
 
-	account, err := s.attachLocked(ctx, merchant, group, in)
-	if err != nil {
-		return nil, err
-	}
-	return account, nil
+	// 保留 disabled 场景下返回的账号对象（凭证已更新），错误本身是显式信号。
+	return s.attachLocked(ctx, merchant, group, in)
 }
 
 // attachLocked 在 (merchant_id, group_id) 事务级锁内完成查重与创建/更新，
@@ -116,6 +119,7 @@ func (s *MerchantOnboardingService) attachLocked(
 	in AttachGroupInput,
 ) (*Account, error) {
 	var result *Account
+	accountDisabled := false
 	err := s.accountRepo.WithMerchantGroupLock(ctx, in.MerchantID, group.ID, func(lockCtx context.Context) error {
 		account, err := s.accountRepo.GetMerchantGroupAccount(lockCtx, in.MerchantID, group.ID)
 		if err != nil {
@@ -127,6 +131,16 @@ func (s *MerchantOnboardingService) attachLocked(
 			}
 			account.Credentials["base_url"] = in.BaseURL
 			account.Credentials["api_key"] = in.APIKey
+			// error 表示上游凭证失效，轮换 key 本身就是一次修复：清除错误并恢复调度。
+			// disabled 是管理员意图，保持禁用，但返回显式信号而不是静默成功。
+			switch account.Status {
+			case StatusError:
+				account.Status = StatusActive
+				account.ErrorMessage = ""
+				account.Schedulable = true
+			case StatusDisabled:
+				accountDisabled = true
+			}
 			if err := s.accountRepo.Update(lockCtx, account); err != nil {
 				return fmt.Errorf("update merchant upstream account: %w", err)
 			}
@@ -156,6 +170,9 @@ func (s *MerchantOnboardingService) attachLocked(
 	})
 	if err != nil {
 		return nil, err
+	}
+	if accountDisabled {
+		return result, ErrMerchantAccountDisabled
 	}
 	return result, nil
 }
