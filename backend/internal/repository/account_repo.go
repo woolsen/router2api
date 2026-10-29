@@ -120,6 +120,12 @@ func NewAdminAccountRepository(client *dbent.Client, sqlDB *sql.DB, schedulerCac
 	return newAccountRepositoryWithSQL(client, sqlDB, schedulerCache)
 }
 
+// NewMerchantOnboardingAccountRepository exposes the merchant onboarding
+// capability as an explicit dependency without widening AccountRepository.
+func NewMerchantOnboardingAccountRepository(client *dbent.Client, sqlDB *sql.DB, schedulerCache service.SchedulerCache) service.MerchantOnboardingAccountRepository {
+	return newAccountRepositoryWithSQL(client, sqlDB, schedulerCache)
+}
+
 // newAccountRepositoryWithSQL 是内部构造函数，支持依赖注入 SQL 执行器。
 // 这种设计便于单元测试时注入 mock 对象。
 func newAccountRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor, schedulerCache service.SchedulerCache) *accountRepository {
@@ -292,12 +298,23 @@ func (r *accountRepository) GetMerchantGroupAccount(ctx context.Context, merchan
 	return nil, nil
 }
 
-// WithMerchantGroupLock 在事务内持有 (merchant_id, group_id) 的事务级
-// PostgreSQL advisory lock，串行化“查重 + 创建”。唯一性跨 accounts 与
-// account_groups 两张表，无法用单表唯一索引表达，因此用锁而不是约束。
-func (r *accountRepository) WithMerchantGroupLock(
+// ListGroupAccounts 返回分组上所有未删除账号（不按状态过滤）。
+// 商户接入前用它检查分组是否已被其他商户或平台自营账号占用。
+func (r *accountRepository) ListGroupAccounts(ctx context.Context, groupID int64) ([]service.Account, error) {
+	if scoped := r.accountTransactionScope(ctx); scoped != r {
+		return scoped.ListGroupAccounts(ctx, groupID)
+	}
+	return r.queryAccountsByGroup(ctx, groupID, accountGroupQueryOptions{})
+}
+
+// WithGroupOnboardingLock 在事务内持有分组级 PostgreSQL advisory lock，
+// 串行化“认领归属 + 查重 + 创建”。唯一性跨 accounts、account_groups 与
+// groups.merchant_id，无法用单表唯一索引表达，因此用锁而不是约束。
+//
+// 锁键只含 groupID：两个商户并发争抢同一无主分组时必须互斥；按
+// (merchant_id, group_id) 分键会给每个商户各一把锁，双方都能通过检查。
+func (r *accountRepository) WithGroupOnboardingLock(
 	ctx context.Context,
-	merchantID int64,
 	groupID int64,
 	fn func(context.Context) error,
 ) error {
@@ -305,7 +322,7 @@ func (r *accountRepository) WithMerchantGroupLock(
 		return nil
 	}
 	if tx := dbent.TxFromContext(ctx); tx != nil {
-		if err := lockMerchantGroupOnboarding(ctx, tx.Client(), merchantID, groupID); err != nil {
+		if err := lockMerchantGroupOnboarding(ctx, tx.Client(), groupID); err != nil {
 			return err
 		}
 		return fn(ctx)
@@ -318,7 +335,7 @@ func (r *accountRepository) WithMerchantGroupLock(
 	defer func() { _ = tx.Rollback() }()
 
 	txCtx := dbent.NewTxContext(ctx, tx)
-	if err := lockMerchantGroupOnboarding(txCtx, tx.Client(), merchantID, groupID); err != nil {
+	if err := lockMerchantGroupOnboarding(txCtx, tx.Client(), groupID); err != nil {
 		return err
 	}
 	if err := fn(txCtx); err != nil {
@@ -327,11 +344,10 @@ func (r *accountRepository) WithMerchantGroupLock(
 	return tx.Commit()
 }
 
-func lockMerchantGroupOnboarding(ctx context.Context, client *dbent.Client, merchantID, groupID int64) error {
+func lockMerchantGroupOnboarding(ctx context.Context, client *dbent.Client, groupID int64) error {
 	if _, err := client.ExecContext(
 		ctx,
-		`SELECT pg_advisory_xact_lock(hashtextextended('merchant_onboarding:' || $1::text || ':' || $2::text, 0))`,
-		merchantID,
+		`SELECT pg_advisory_xact_lock(hashtextextended('merchant_onboarding:group:' || $1::text, 0))`,
 		groupID,
 	); err != nil {
 		return fmt.Errorf("lock merchant onboarding: %w", err)

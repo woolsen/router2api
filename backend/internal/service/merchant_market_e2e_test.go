@@ -90,6 +90,9 @@ func TestMarketE2E(t *testing.T) {
 	accountRepo := repository.NewAccountRepository(client, db, nil)
 	onboardingAccountRepo, ok := accountRepo.(service.MerchantOnboardingAccountRepository)
 	require.True(t, ok, "account repository must expose the merchant onboarding capabilities")
+	onboardingGroupRepo, ok := groupRepo.(service.MerchantOnboardingGroupRepository)
+	require.True(t, ok, "group repository must expose the merchant onboarding capabilities")
+	channelRepo := repository.NewChannelRepository(db)
 	userRepo := repository.NewUserRepository(client, db)
 	apiKeyRepo := repository.NewAPIKeyRepository(client, db)
 	usageLogRepo := repository.NewUsageLogRepository(client, db)
@@ -99,7 +102,8 @@ func TestMarketE2E(t *testing.T) {
 	settlementRepo := repository.NewSettlementRepository(client, db)
 
 	merchantSvc := service.NewMerchantService(merchantRepo)
-	onboardingSvc := service.NewMerchantOnboardingService(merchantSvc, onboardingAccountRepo, groupRepo)
+	channelSvc := service.NewChannelService(channelRepo, groupRepo, nil, nil, nil)
+	onboardingSvc := service.NewMerchantOnboardingService(merchantSvc, onboardingAccountRepo, onboardingGroupRepo, channelSvc, nil)
 
 	// 网关/认证服务共用配置：标准计费模式；fake 上游是 http://127.0.0.1，
 	// 生产里接内网中转站同样需要管理员显式放开 allow_insecure_http。
@@ -107,8 +111,10 @@ func TestMarketE2E(t *testing.T) {
 	cfg.Default.RateMultiplier = 1
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 
-	// 1) 建商户（抽成故意取非默认的 12.5%），绑一个平台为 openai 的市场分组。
-	// 用非默认值是关键：若实现把所有商户都按 MerchantDefaultCommissionRate(8%) 计费，
+	// 1) 建商户（抽成故意取非默认的 12.5%），建一个无主 openai 分组。
+	// 特意不 seed groups.merchant_id：归属必须由 AttachGroup 自己认领，否则
+	// usage_logs 快照、结算与货架都会是空的。
+	// 用非默认抽成是关键：若实现把所有商户都按 MerchantDefaultCommissionRate(8%) 计费，
 	// 下面 usage_logs/结算的断言必须失败。
 	const snapshotCommission = 0.125
 	commission := snapshotCommission
@@ -125,11 +131,11 @@ func TestMarketE2E(t *testing.T) {
 		Status:           service.StatusActive,
 		SubscriptionType: service.SubscriptionTypeStandard,
 		RateMultiplier:   1,
-		MerchantID:       &merchant.ID,
 	}
 	require.NoError(t, groupRepo.Create(ctx, group))
+	require.Nil(t, group.MerchantID, "test must start from an unowned group")
 
-	// 2) AttachGroup：为分组创建唯一上游账号，凭证指向 fake 上游。
+	// 2) AttachGroup：认领分组归属并创建唯一上游账号，凭证指向 fake 上游。
 	account, err := onboardingSvc.AttachGroup(ctx, service.AttachGroupInput{
 		MerchantID: merchant.ID,
 		GroupID:    group.ID,
@@ -142,6 +148,73 @@ func TestMarketE2E(t *testing.T) {
 	require.Equal(t, service.AccountTypeAPIKey, account.Type)
 	require.Equal(t, "sk-up", account.GetCredential("api_key"))
 	require.Equal(t, upstream.URL, account.GetCredential("base_url"))
+
+	claimedGroup, err := groupRepo.GetByID(ctx, group.ID)
+	require.NoError(t, err)
+	require.NotNil(t, claimedGroup.MerchantID, "AttachGroup must write groups.merchant_id")
+	require.Equal(t, merchant.ID, *claimedGroup.MerchantID, "group must belong to the attaching merchant")
+	group.MerchantID = claimedGroup.MerchantID
+
+	// 同一无主分组不能被第二个商户抢走。
+	otherMerchant, err := merchantSvc.Create(ctx, service.CreateMerchantInput{Name: "E2E Other Merchant"})
+	require.NoError(t, err)
+	_, err = onboardingSvc.AttachGroup(ctx, service.AttachGroupInput{
+		MerchantID: otherMerchant.ID,
+		GroupID:    group.ID,
+		BaseURL:    upstream.URL,
+		APIKey:     "sk-other",
+		Platform:   service.PlatformOpenAI,
+	})
+	require.ErrorIs(t, err, service.ErrMerchantGroupOwnership,
+		"the same group must not be attachable by two merchants")
+
+	// 分组上的平台自营账号（或别的商户账号）必须显式拒绝，不能共用。
+	occupiedGroup := &service.Group{
+		Name:             "merchant-e2e-occupied",
+		Platform:         service.PlatformOpenAI,
+		Status:           service.StatusActive,
+		SubscriptionType: service.SubscriptionTypeStandard,
+		RateMultiplier:   1,
+	}
+	require.NoError(t, groupRepo.Create(ctx, occupiedGroup))
+	platformAccount := &service.Account{
+		Name:        "platform-owned-e2e",
+		Platform:    service.PlatformOpenAI,
+		Type:        service.AccountTypeAPIKey,
+		Credentials: map[string]any{"base_url": upstream.URL, "api_key": "sk-platform"},
+		Status:      service.StatusActive,
+		Schedulable: true,
+	}
+	require.NoError(t, onboardingAccountRepo.CreateWithAccountGroups(ctx, platformAccount, []service.AccountGroup{
+		{GroupID: occupiedGroup.ID, Priority: 50},
+	}))
+	_, err = onboardingSvc.AttachGroup(ctx, service.AttachGroupInput{
+		MerchantID: merchant.ID,
+		GroupID:    occupiedGroup.ID,
+		BaseURL:    upstream.URL,
+		APIKey:     "sk-occupied",
+		Platform:   service.PlatformOpenAI,
+	})
+	require.ErrorIs(t, err, service.ErrMerchantGroupOccupied)
+	stillUnowned, err := groupRepo.GetByID(ctx, occupiedGroup.ID)
+	require.NoError(t, err)
+	require.Nil(t, stillUnowned.MerchantID, "failed attach must not leave a half-claimed group")
+
+	// 3) 配置货架模型：货架只展示有模型的商户分组。
+	require.NoError(t, onboardingSvc.ConfigureGroupModels(ctx, group.ID, service.PlatformOpenAI, []string{"gpt-5.4"}))
+	shelfSvc := service.NewModelPlazaService(channelRepo, groupRepo, nil, nil, nil)
+	shelf, err := shelfSvc.ListGroups(ctx)
+	require.NoError(t, err)
+	var shelfGroup *service.PlazaGroup
+	for i := range shelf {
+		if shelf[i].ID == group.ID {
+			shelfGroup = &shelf[i]
+			break
+		}
+	}
+	require.NotNil(t, shelfGroup, "merchant group must be visible on the shelf after attach + model config")
+	require.Equal(t, merchant.ID, *shelfGroup.MerchantID)
+	require.NotEmpty(t, shelfGroup.Models)
 
 	// 商户上游是 OpenAI 兼容中转站：没有 /v1/responses，只能直转 CC。
 	// 这是管理员在账号上做的探测配置，测试按真实配置写入。

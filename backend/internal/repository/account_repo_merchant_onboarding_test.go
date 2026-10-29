@@ -14,7 +14,7 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 )
 
-const merchantOnboardingLockSQL = `SELECT pg_advisory_xact_lock(hashtextextended('merchant_onboarding:' || $1::text || ':' || $2::text, 0))`
+const merchantOnboardingLockSQL = `SELECT pg_advisory_xact_lock(hashtextextended('merchant_onboarding:group:' || $1::text, 0))`
 
 func newMerchantOnboardingTestRepo(t *testing.T) (*accountRepository, sqlmock.Sqlmock) {
 	t.Helper()
@@ -28,17 +28,17 @@ func newMerchantOnboardingTestRepo(t *testing.T) (*accountRepository, sqlmock.Sq
 	return newAccountRepositoryWithSQL(client, db, nil), mock
 }
 
-func TestWithMerchantGroupLockTakesAdvisoryLockInTransaction(t *testing.T) {
+func TestWithGroupOnboardingLockTakesAdvisoryLockInTransaction(t *testing.T) {
 	repo, mock := newMerchantOnboardingTestRepo(t)
 
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(merchantOnboardingLockSQL)).
-		WithArgs(int64(1), int64(7)).
+		WithArgs(int64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	called := false
-	err := repo.WithMerchantGroupLock(context.Background(), 1, 7, func(ctx context.Context) error {
+	err := repo.WithGroupOnboardingLock(context.Background(), 7, func(ctx context.Context) error {
 		called = true
 		require.NotNil(t, dbent.TxFromContext(ctx), "callback must run inside the locking transaction")
 		return nil
@@ -49,17 +49,17 @@ func TestWithMerchantGroupLockTakesAdvisoryLockInTransaction(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestWithMerchantGroupLockRollsBackWhenCallbackFails(t *testing.T) {
+func TestWithGroupOnboardingLockRollsBackWhenCallbackFails(t *testing.T) {
 	repo, mock := newMerchantOnboardingTestRepo(t)
 
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(merchantOnboardingLockSQL)).
-		WithArgs(int64(1), int64(7)).
+		WithArgs(int64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectRollback()
 
 	boom := errors.New("boom")
-	err := repo.WithMerchantGroupLock(context.Background(), 1, 7, func(context.Context) error {
+	err := repo.WithGroupOnboardingLock(context.Background(), 7, func(context.Context) error {
 		return boom
 	})
 
@@ -67,12 +67,12 @@ func TestWithMerchantGroupLockRollsBackWhenCallbackFails(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestWithMerchantGroupLockReusesOuterTransaction(t *testing.T) {
+func TestWithGroupOnboardingLockReusesOuterTransaction(t *testing.T) {
 	repo, mock := newMerchantOnboardingTestRepo(t)
 
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(merchantOnboardingLockSQL)).
-		WithArgs(int64(1), int64(7)).
+		WithArgs(int64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
@@ -81,7 +81,7 @@ func TestWithMerchantGroupLockReusesOuterTransaction(t *testing.T) {
 	ctx := dbent.NewTxContext(context.Background(), tx)
 
 	called := false
-	require.NoError(t, repo.WithMerchantGroupLock(ctx, 1, 7, func(ctx context.Context) error {
+	require.NoError(t, repo.WithGroupOnboardingLock(ctx, 7, func(ctx context.Context) error {
 		called = true
 		require.Same(t, tx, dbent.TxFromContext(ctx))
 		return nil

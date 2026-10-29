@@ -160,6 +160,7 @@ func registerMerchantRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		merchants.GET("", h.Admin.Merchant.List)
 		merchants.POST("", h.Admin.Merchant.Create)
 		merchants.GET("/:id", h.Admin.Merchant.Get)
+		merchants.POST("/:id/groups", h.Admin.Merchant.AttachGroup)
 		merchants.PATCH("/:id/commission", h.Admin.Merchant.UpdateCommission)
 	}
 }

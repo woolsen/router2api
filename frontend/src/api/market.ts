@@ -17,11 +17,27 @@ import type { GroupPlatform } from '@/types'
  */
 export type MarketGroupStats = Record<string, number>
 
+export interface MarketPeakRate {
+  start: string
+  end: string
+  multiplier: number
+  /** 本次请求时刻是否落在高峰窗口内（与计费同一判定）。 */
+  active_now: boolean
+}
+
 export interface MarketGroup {
   id: number
   name: string
   platform: GroupPlatform
+  /**
+   * 当前用户实际生效的 token 倍率（用户专属倍率优先于分组基础倍率）。
+   * 峰时倍率不并入此值，见 peak_rate。
+   */
   rate_multiplier: number
+  /** true 表示服务端拿不到用户专属倍率，展示的只是基础倍率，以实际计费为准。 */
+  rate_is_estimate: boolean
+  /** 高峰时段倍率信息；未启用时为 null。 */
+  peak_rate: MarketPeakRate | null
   models: string[]
   status: string
   /** M1 恒为 null；客户端必须能处理 null。 */

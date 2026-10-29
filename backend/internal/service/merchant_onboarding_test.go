@@ -11,14 +11,14 @@ import (
 // fakeOnboardingAccountRepo 是 AttachGroup 所需的账号仓储内存实现。
 // 它模拟真实仓储的关键语义：
 //   - GetMerchantGroupAccount 不按状态过滤（error/disabled 也要复用）；
-//   - WithMerchantGroupLock 按 (merchant_id, group_id) 串行化；
+//   - WithGroupOnboardingLock 只按 groupID 串行化；
 //   - 可注入查重后的停顿，用来放大并发窗口。
 type fakeOnboardingAccountRepo struct {
 	mu             sync.Mutex
 	nextID         int64
 	accounts       map[int64]*Account
 	groups         map[int64][]AccountGroup
-	locks          map[[2]int64]*sync.Mutex
+	locks          map[int64]*sync.Mutex
 	createCalls    int
 	updateCalls    int
 	lockDepth      int
@@ -33,7 +33,7 @@ func newFakeOnboardingAccountRepo() *fakeOnboardingAccountRepo {
 		nextID:   1,
 		accounts: make(map[int64]*Account),
 		groups:   make(map[int64][]AccountGroup),
-		locks:    make(map[[2]int64]*sync.Mutex),
+		locks:    make(map[int64]*sync.Mutex),
 	}
 }
 
@@ -97,17 +97,30 @@ func (r *fakeOnboardingAccountRepo) GetMerchantGroupAccount(_ context.Context, m
 	return found, nil
 }
 
-func (r *fakeOnboardingAccountRepo) WithMerchantGroupLock(
+func (r *fakeOnboardingAccountRepo) ListGroupAccounts(_ context.Context, groupID int64) ([]Account, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]Account, 0, len(r.groups[groupID]))
+	for _, binding := range r.groups[groupID] {
+		acc, ok := r.accounts[binding.AccountID]
+		if !ok {
+			continue
+		}
+		out = append(out, *cloneOnboardingAccount(acc))
+	}
+	return out, nil
+}
+
+func (r *fakeOnboardingAccountRepo) WithGroupOnboardingLock(
 	_ context.Context,
-	merchantID, groupID int64,
+	groupID int64,
 	fn func(context.Context) error,
 ) error {
-	key := [2]int64{merchantID, groupID}
 	r.mu.Lock()
-	lock := r.locks[key]
+	lock := r.locks[groupID]
 	if lock == nil {
 		lock = &sync.Mutex{}
-		r.locks[key] = lock
+		r.locks[groupID] = lock
 	}
 	r.mu.Unlock()
 
@@ -166,8 +179,9 @@ func (r *fakeOnboardingAccountRepo) updateCount() int {
 	return r.updateCalls
 }
 
-// fakeOnboardingGroupRepo 仅实现接入流程用到的按 ID 查询。
+// fakeOnboardingGroupRepo 实现接入流程用到的按 ID 查询与归属认领。
 type fakeOnboardingGroupRepo struct {
+	mu   sync.Mutex
 	byID map[int64]*Group
 }
 
@@ -176,12 +190,33 @@ func newFakeOnboardingGroupRepo() *fakeOnboardingGroupRepo {
 }
 
 func (r *fakeOnboardingGroupRepo) GetByID(_ context.Context, id int64) (*Group, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	group, ok := r.byID[id]
 	if !ok {
 		return nil, ErrGroupNotFound
 	}
 	cp := *group
 	return &cp, nil
+}
+
+func (r *fakeOnboardingGroupRepo) ClaimMerchantOwnership(
+	_ context.Context,
+	merchantID, groupID int64,
+) (bool, *int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	group, ok := r.byID[groupID]
+	if !ok {
+		return false, nil, ErrGroupNotFound
+	}
+	if group.MerchantID == nil {
+		owner := merchantID
+		group.MerchantID = &owner
+		return true, &owner, nil
+	}
+	owner := *group.MerchantID
+	return false, &owner, nil
 }
 
 type onboardingFixture struct {
@@ -212,7 +247,7 @@ func newOnboardingFixture(t *testing.T, groupMerchantID *int64) *onboardingFixtu
 	}
 
 	return &onboardingFixture{
-		svc:          NewMerchantOnboardingService(merchantSvc, accounts, groups),
+		svc:          NewMerchantOnboardingService(merchantSvc, accounts, groups, nil, nil),
 		merchantRepo: merchantRepo,
 		merchant:     merchant,
 		accounts:     accounts,
@@ -266,6 +301,71 @@ func TestAttachGroupCreatesUpstreamAccount(t *testing.T) {
 	}
 	if bindings[0].Priority != 50 {
 		t.Fatalf("want priority 50, got %d", bindings[0].Priority)
+	}
+	if got := f.groups.byID[7].MerchantID; got == nil || *got != f.merchant.ID {
+		t.Fatalf("AttachGroup must claim group ownership, got %v", got)
+	}
+}
+
+func TestAttachGroupRejectsGroupOccupiedByPlatformAccount(t *testing.T) {
+	ctx := context.Background()
+	f := newOnboardingFixture(t, nil)
+	f.accounts.seed(&Account{
+		ID:          55,
+		Name:        "platform-owned",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"base_url": "https://platform.example.com", "api_key": "sk-platform"},
+		Status:      StatusActive,
+		Schedulable: true,
+		MerchantID:  nil,
+	}, 7)
+
+	_, err := f.svc.AttachGroup(ctx, AttachGroupInput{
+		MerchantID: f.merchant.ID,
+		GroupID:    7,
+		BaseURL:    "https://up.example.com/v1",
+		APIKey:     "sk-up",
+		Platform:   PlatformOpenAI,
+	})
+	if !errors.Is(err, ErrMerchantGroupOccupied) {
+		t.Fatalf("want ErrMerchantGroupOccupied, got %v", err)
+	}
+	if got := f.groups.byID[7].MerchantID; got != nil {
+		t.Fatalf("failed attach must not claim the group, got merchant %d", *got)
+	}
+	if got := f.accounts.createCount(); got != 0 {
+		t.Fatalf("must not create an account on an occupied group, got %d", got)
+	}
+}
+
+func TestAttachGroupRejectsGroupOccupiedByAnotherMerchantAccount(t *testing.T) {
+	ctx := context.Background()
+	f := newOnboardingFixture(t, nil)
+	otherMerchantID := int64(99)
+	f.accounts.seed(&Account{
+		ID:          66,
+		Name:        "other-merchant",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"base_url": "https://other.example.com", "api_key": "sk-other"},
+		Status:      StatusActive,
+		Schedulable: true,
+		MerchantID:  &otherMerchantID,
+	}, 7)
+
+	_, err := f.svc.AttachGroup(ctx, AttachGroupInput{
+		MerchantID: f.merchant.ID,
+		GroupID:    7,
+		BaseURL:    "https://up.example.com/v1",
+		APIKey:     "sk-up",
+		Platform:   PlatformOpenAI,
+	})
+	if !errors.Is(err, ErrMerchantGroupOccupied) {
+		t.Fatalf("want ErrMerchantGroupOccupied, got %v", err)
+	}
+	if got := f.groups.byID[7].MerchantID; got != nil {
+		t.Fatalf("failed attach must not claim the group, got merchant %d", *got)
 	}
 }
 
@@ -532,5 +632,47 @@ func TestAttachGroupConcurrentCallsCreateSingleAccount(t *testing.T) {
 	}
 	if len(seen) != 1 {
 		t.Fatalf("want both calls to reuse one account, got IDs %v", seen)
+	}
+}
+
+// fakeOnboardingAuthCache 记录分组级认证缓存失效调用。
+type fakeOnboardingAuthCache struct {
+	groups []int64
+}
+
+func (f *fakeOnboardingAuthCache) InvalidateAuthCacheByKey(context.Context, string) {}
+
+func (f *fakeOnboardingAuthCache) InvalidateAuthCacheByUserID(context.Context, int64) {}
+
+func (f *fakeOnboardingAuthCache) InvalidateAuthCacheByGroupID(_ context.Context, groupID int64) {
+	f.groups = append(f.groups, groupID)
+}
+
+func TestAttachGroupInvalidatesAuthCacheOnlyWhenClaiming(t *testing.T) {
+	ctx := context.Background()
+	f := newOnboardingFixture(t, nil)
+	auth := &fakeOnboardingAuthCache{}
+	f.svc.authCache = auth
+
+	in := AttachGroupInput{
+		MerchantID: f.merchant.ID,
+		GroupID:    7,
+		BaseURL:    "https://up.example.com/v1",
+		APIKey:     "sk-up",
+		Platform:   PlatformOpenAI,
+	}
+	if _, err := f.svc.AttachGroup(ctx, in); err != nil {
+		t.Fatalf("first attach: %v", err)
+	}
+	if len(auth.groups) != 1 || auth.groups[0] != 7 {
+		t.Fatalf("claim must invalidate auth cache for the group, got %v", auth.groups)
+	}
+
+	// 幂等重试不再认领，避免每次轮换 key 都清空全组认证缓存。
+	if _, err := f.svc.AttachGroup(ctx, in); err != nil {
+		t.Fatalf("second attach: %v", err)
+	}
+	if len(auth.groups) != 1 {
+		t.Fatalf("idempotent attach must not invalidate again, got %v", auth.groups)
 	}
 }

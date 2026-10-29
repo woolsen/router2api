@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -38,6 +39,10 @@ var (
 	ErrSettlementSimpleMode = errors.New("settlement generation is disabled when run_mode=simple")
 	// ErrSettlementStatusTransition 表示状态机不允许的流转。
 	ErrSettlementStatusTransition = errors.New("invalid settlement status transition")
+	// ErrSettlementUnknownCommission 表示账期内存在写入时费率未知的用量行。
+	// 这些行不能按 0 结算；返回可重试错误，等费率回填后由 ticker 下一轮再生成，
+	// 绝不能在缺金额时先落一张永远无法补差的结算单。
+	ErrSettlementUnknownCommission = errors.New("settlement blocked: usage rows have NULL commission_rate; backfill and retry")
 )
 
 // Settlement 是商户的周结算应付单。
@@ -158,9 +163,13 @@ func (s *SettlementService) Generate(
 	}
 	if agg.ExcludedUnknownCommissionRows > 0 {
 		log.Printf(
-			"[Settlement] merchant %d period %s..%s: %d usage rows skipped (commission_rate IS NULL); re-settle after rate backfill",
+			"[Settlement] merchant %d period %s..%s: refusing to create settlement: %d usage rows have commission_rate IS NULL; backfill usage_logs.commission_rate for these rows (recover the merchant rate at write time or reconcile manually and UPDATE usage_logs SET commission_rate = ... WHERE merchant_id = %d AND commission_rate IS NULL AND created_at >= %s AND created_at < %s), then retry on the next tick",
 			merchantID, start.Format(time.RFC3339), end.Format(time.RFC3339), agg.ExcludedUnknownCommissionRows,
+			merchantID, start.Format(time.RFC3339), end.Format(time.RFC3339),
 		)
+		return nil, fmt.Errorf("%w: merchant=%d period=%s..%s rows=%d",
+			ErrSettlementUnknownCommission, merchantID,
+			start.Format(time.RFC3339), end.Format(time.RFC3339), agg.ExcludedUnknownCommissionRows)
 	}
 
 	return s.repo.CreateOrGet(ctx, &Settlement{

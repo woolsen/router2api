@@ -59,6 +59,27 @@
               <div class="text-lg font-semibold text-gray-900 dark:text-white">
                 ×{{ group.rate_multiplier }}
               </div>
+              <div
+                v-if="group.peak_rate"
+                class="mt-1 text-[11px] text-gray-500 dark:text-dark-400"
+                data-test="market-peak-rate"
+              >
+                {{ t('market.peakRate', {
+                  start: group.peak_rate.start,
+                  end: group.peak_rate.end,
+                  multiplier: group.peak_rate.multiplier
+                }) }}
+                <span v-if="group.peak_rate.active_now" class="text-amber-600 dark:text-amber-400">
+                  {{ t('market.peakActive') }}
+                </span>
+              </div>
+              <div
+                v-if="group.rate_is_estimate"
+                class="mt-1 text-[11px] text-amber-600 dark:text-amber-400"
+                data-test="market-rate-estimate"
+              >
+                {{ t('market.rateEstimate') }}
+              </div>
             </div>
           </div>
 

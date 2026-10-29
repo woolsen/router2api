@@ -317,20 +317,26 @@ func parseMinutes(hhmm string) (int, bool) {
 //
 // 该方法是纯函数，不读取任何外部状态，便于单测。
 func (g *Group) PeakMultiplierAt(now time.Time) float64 {
-	if g == nil || !g.IsSubscriptionType() || !g.PeakRateEnabled || g.PeakStart == "" || g.PeakEnd == "" {
+	if !g.IsPeakTimeAt(now) {
 		return 1.0
+	}
+	return g.PeakRateMultiplier
+}
+
+// IsPeakTimeAt 返回 now 是否落在有效的高峰窗口内，判定与 PeakMultiplierAt 完全一致。
+// 展示层用它标注“当前高峰”，避免因倍率为 1.0/0.5 等非 >1 值而误判。
+func (g *Group) IsPeakTimeAt(now time.Time) bool {
+	if g == nil || !g.IsSubscriptionType() || !g.PeakRateEnabled || g.PeakStart == "" || g.PeakEnd == "" {
+		return false
 	}
 	start, ok1 := parseMinutes(g.PeakStart)
 	end, ok2 := parseMinutes(g.PeakEnd)
 	if !ok1 || !ok2 || start >= end {
-		return 1.0
+		return false
 	}
 	t := now.In(timezone.Location())
 	cur := t.Hour()*60 + t.Minute()
-	if cur >= start && cur < end {
-		return g.PeakRateMultiplier
-	}
-	return 1.0
+	return cur >= start && cur < end
 }
 
 // ValidatePeakRateConfig 是高峰倍率配置的唯一校验来源，供 handler 与 service 层共用。

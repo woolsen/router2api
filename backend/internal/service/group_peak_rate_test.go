@@ -236,3 +236,20 @@ func TestPeakMultiplier_SnapshotRoundTrip(t *testing.T) {
 		t.Fatalf("off-peak multiplier after round-trip: got %v, want 1.0", got)
 	}
 }
+
+func TestIsPeakTimeAt_IndependentOfMultiplierValue(t *testing.T) {
+	// 折扣（<1）或免费（=0）也是“处于高峰窗口”，展示层不能靠倍率 >1 判断。
+	for _, mult := range []float64{0, 0.5, 1, 3} {
+		g := newPeakGroup(true, "14:00", "18:00", mult)
+		if !g.IsPeakTimeAt(at(15, 0)) {
+			t.Fatalf("multiplier %v: 15:00 must be inside the peak window", mult)
+		}
+		if g.IsPeakTimeAt(at(19, 0)) {
+			t.Fatalf("multiplier %v: 19:00 must be outside the peak window", mult)
+		}
+	}
+	var nilGroup *Group
+	if nilGroup.IsPeakTimeAt(at(15, 0)) {
+		t.Fatal("nil group cannot be in a peak window")
+	}
+}

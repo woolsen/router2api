@@ -837,6 +837,112 @@ func formatMaxTokens(max *int) string {
 
 // --- CRUD ---
 
+// EnsureGroupModels 为分组建立或复用渠道，并把这些模型写入渠道定价列表，
+// 使 /model-plaza 与货架（ModelPlazaService.ListGroups）能枚举到该分组。
+//
+// 货架的模型清单只来自「活跃渠道 ∪ 分组」，分组本身没有 models 字段；
+// 因此没有渠道/模型的分组即使接入成功也不会出现在货架上。
+func (s *ChannelService) EnsureGroupModels(ctx context.Context, groupID int64, platform string, models []string) error {
+	if groupID <= 0 {
+		return infraerrors.BadRequest("INVALID_GROUP_ID", "group id must be positive")
+	}
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return infraerrors.BadRequest("INVALID_PLATFORM", "platform is required")
+	}
+	normalized := normalizeChannelModelNames(models)
+	if len(normalized) == 0 {
+		return infraerrors.BadRequest("MODELS_REQUIRED", "models must not be empty")
+	}
+
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if group.Platform != platform {
+		return infraerrors.BadRequest("PLATFORM_MISMATCH",
+			fmt.Sprintf("platform %q does not match group platform %q", platform, group.Platform))
+	}
+
+	channelID, err := s.repo.GetChannelIDByGroupID(ctx, groupID)
+	if err != nil {
+		return fmt.Errorf("get channel for group: %w", err)
+	}
+	if channelID == 0 {
+		name := fmt.Sprintf("merchant-group-%d", groupID)
+		exists, err := s.repo.ExistsByName(ctx, name)
+		if err != nil {
+			return fmt.Errorf("check channel exists: %w", err)
+		}
+		if exists {
+			return fmt.Errorf("channel %q already exists but is not bound to group %d; resolve the name conflict", name, groupID)
+		}
+		_, err = s.Create(ctx, &CreateChannelInput{
+			Name:        name,
+			Description: fmt.Sprintf("Merchant onboarding models for group %d", groupID),
+			GroupIDs:    []int64{groupID},
+			ModelPricing: []ChannelModelPricing{{
+				Platform: platform,
+				Models:   normalized,
+			}},
+		})
+		return err
+	}
+
+	channel, err := s.repo.GetByID(ctx, channelID)
+	if err != nil {
+		return fmt.Errorf("get channel: %w", err)
+	}
+	merged := mergeChannelModels(channel.ModelPricing, platform, normalized)
+	if _, err := s.Update(ctx, channelID, &UpdateChannelInput{ModelPricing: &merged}); err != nil {
+		return fmt.Errorf("update channel models: %w", err)
+	}
+	return nil
+}
+
+// normalizeChannelModelNames 去空白、去重（大小写不敏感），保留首次出现的写法。
+func normalizeChannelModelNames(models []string) []string {
+	seen := make(map[string]struct{}, len(models))
+	out := make([]string, 0, len(models))
+	for _, raw := range models {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
+		}
+		key := strings.ToLower(name)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, name)
+	}
+	return out
+}
+
+// mergeChannelModels 把模型追加到同平台定价条目；没有该平台条目时新建一条。
+// 保留其他平台与既有价格字段，不覆盖管理员已配置的定价。
+func mergeChannelModels(existing []ChannelModelPricing, platform string, models []string) []ChannelModelPricing {
+	merged := append([]ChannelModelPricing(nil), existing...)
+	for i := range merged {
+		if merged[i].Platform != platform {
+			continue
+		}
+		seen := make(map[string]struct{}, len(merged[i].Models)+len(models))
+		for _, name := range merged[i].Models {
+			seen[strings.ToLower(strings.TrimSpace(name))] = struct{}{}
+		}
+		for _, name := range models {
+			if _, ok := seen[strings.ToLower(name)]; ok {
+				continue
+			}
+			seen[strings.ToLower(name)] = struct{}{}
+			merged[i].Models = append(merged[i].Models, name)
+		}
+		return merged
+	}
+	return append(merged, ChannelModelPricing{Platform: platform, Models: models})
+}
+
 // Create 创建渠道
 func (s *ChannelService) Create(ctx context.Context, input *CreateChannelInput) (*Channel, error) {
 	exists, err := s.repo.ExistsByName(ctx, input.Name)

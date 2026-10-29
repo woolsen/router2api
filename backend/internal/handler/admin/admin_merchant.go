@@ -11,13 +11,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// MerchantHandler 管理入驻商户（中转站）的后台 CRUD。
+// MerchantHandler 管理入驻商户（中转站）的后台 CRUD 与分组接入。
 type MerchantHandler struct {
-	merchantService *service.MerchantService
+	merchantService   *service.MerchantService
+	onboardingService *service.MerchantOnboardingService
 }
 
-func NewMerchantHandler(merchantService *service.MerchantService) *MerchantHandler {
-	return &MerchantHandler{merchantService: merchantService}
+func NewMerchantHandler(
+	merchantService *service.MerchantService,
+	onboardingService *service.MerchantOnboardingService,
+) *MerchantHandler {
+	return &MerchantHandler{
+		merchantService:   merchantService,
+		onboardingService: onboardingService,
+	}
 }
 
 type createMerchantRequest struct {
@@ -28,6 +35,27 @@ type createMerchantRequest struct {
 
 type updateMerchantCommissionRequest struct {
 	CommissionRate *float64 `json:"commission_rate" binding:"required"`
+}
+
+// attachMerchantGroupRequest 是商户把分组接入上游的请求体。
+// models 不能为空：货架只展示有模型的分组，无模型接入等于不可售。
+type attachMerchantGroupRequest struct {
+	GroupID  int64    `json:"group_id" binding:"required"`
+	BaseURL  string   `json:"base_url" binding:"required"`
+	APIKey   string   `json:"api_key" binding:"required"`
+	Platform string   `json:"platform" binding:"required"`
+	Models   []string `json:"models"`
+}
+
+// attachMerchantGroupResponse 是接入成功的白名单响应：绝不回显 api_key/base_url。
+type attachMerchantGroupResponse struct {
+	GroupID       int64    `json:"group_id"`
+	MerchantID    int64    `json:"merchant_id"`
+	AccountID     int64    `json:"account_id"`
+	AccountName   string   `json:"account_name"`
+	AccountStatus string   `json:"account_status"`
+	Platform      string   `json:"platform"`
+	Models        []string `json:"models"`
 }
 
 type merchantResponse struct {
@@ -131,6 +159,55 @@ func (h *MerchantHandler) UpdateCommission(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"id": id, "commission_rate": *req.CommissionRate})
+}
+
+// AttachGroup 为商户接入一个分组的商户上游账号，并配置货架所需模型。
+// POST /api/v1/admin/merchants/:id/groups
+func (h *MerchantHandler) AttachGroup(c *gin.Context) {
+	id, ok := parseMerchantID(c)
+	if !ok {
+		return
+	}
+
+	var req attachMerchantGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if req.GroupID <= 0 {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	if len(req.Models) == 0 {
+		response.ErrorFrom(c, service.ErrMerchantGroupModelsRequired)
+		return
+	}
+
+	account, err := h.onboardingService.AttachGroup(c.Request.Context(), service.AttachGroupInput{
+		MerchantID: id,
+		GroupID:    req.GroupID,
+		BaseURL:    req.BaseURL,
+		APIKey:     req.APIKey,
+		Platform:   req.Platform,
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	if err := h.onboardingService.ConfigureGroupModels(c.Request.Context(), req.GroupID, req.Platform, req.Models); err != nil {
+		h.respondError(c, err)
+		return
+	}
+
+	response.Success(c, attachMerchantGroupResponse{
+		GroupID:       req.GroupID,
+		MerchantID:    id,
+		AccountID:     account.ID,
+		AccountName:   account.Name,
+		AccountStatus: account.Status,
+		Platform:      account.Platform,
+		Models:        req.Models,
+	})
 }
 
 func (h *MerchantHandler) respondError(c *gin.Context, err error) {

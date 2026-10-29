@@ -62,7 +62,14 @@ func lockLiveGroups(ctx context.Context, exec sqlExecutor, groupIDs []int64) err
 	return nil
 }
 
+// NewGroupRepository 创建分组仓储实例。
 func NewGroupRepository(client *dbent.Client, sqlDB *sql.DB) service.GroupRepository {
+	return newGroupRepositoryWithSQL(client, sqlDB)
+}
+
+// NewMerchantOnboardingGroupRepository exposes the merchant onboarding
+// capability as an explicit dependency without widening GroupRepository.
+func NewMerchantOnboardingGroupRepository(client *dbent.Client, sqlDB *sql.DB) service.MerchantOnboardingGroupRepository {
 	return newGroupRepositoryWithSQL(client, sqlDB)
 }
 
@@ -281,6 +288,57 @@ func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.G
 		return nil, translatePersistenceError(err, service.ErrGroupNotFound, nil)
 	}
 	return groupEntityToService(m), nil
+}
+
+// ClaimMerchantOwnership 条件认领分组：只在 merchant_id IS NULL 时写入，
+// 通过影响行数区分“认领成功”与“已被他人认领”。在调用方的事务上下文中执行
+// （dbent.TxFromContext），失败时随外层事务回滚。
+func (r *groupRepository) ClaimMerchantOwnership(
+	ctx context.Context,
+	merchantID, groupID int64,
+) (bool, *int64, error) {
+	exec := r.sql
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		exec = tx
+	}
+
+	res, err := exec.ExecContext(
+		ctx,
+		`UPDATE groups SET merchant_id = $1, updated_at = NOW()
+		 WHERE id = $2 AND merchant_id IS NULL AND deleted_at IS NULL`,
+		merchantID, groupID,
+	)
+	if err != nil {
+		return false, nil, fmt.Errorf("claim merchant group ownership: %w", err)
+	}
+	if affected, err := res.RowsAffected(); err == nil && affected > 0 {
+		return true, &merchantID, nil
+	}
+
+	rows, err := exec.QueryContext(
+		ctx,
+		`SELECT merchant_id FROM groups WHERE id = $1 AND deleted_at IS NULL`,
+		groupID,
+	)
+	if err != nil {
+		return false, nil, fmt.Errorf("read merchant group ownership: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return false, nil, fmt.Errorf("read merchant group ownership: %w", err)
+		}
+		return false, nil, service.ErrGroupNotFound
+	}
+	var owner sql.NullInt64
+	if err := rows.Scan(&owner); err != nil {
+		return false, nil, fmt.Errorf("scan merchant group ownership: %w", err)
+	}
+	if !owner.Valid {
+		return false, nil, nil
+	}
+	value := owner.Int64
+	return false, &value, nil
 }
 
 func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) error {

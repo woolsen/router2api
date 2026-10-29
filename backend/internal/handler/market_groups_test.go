@@ -25,15 +25,22 @@ func (f *fakeMarketGroupSource) ListGroups(context.Context) ([]service.PlazaGrou
 	return f.groups, f.err
 }
 
-// fakeMarketVisibility 是可见性替身：模拟 APIKeyService.GetUserGroupVisibility。
+// fakeMarketVisibility 是可见性替身：模拟 APIKeyService.GetUserGroupVisibility
+// 与 GetUserGroupRates。
 type fakeMarketVisibility struct {
 	allowed        map[int64]struct{}
 	restrictPublic bool
 	err            error
+	rates          map[int64]float64
+	ratesErr       error
 }
 
 func (f *fakeMarketVisibility) GetUserGroupVisibility(context.Context, int64) (map[int64]struct{}, bool, error) {
 	return f.allowed, f.restrictPublic, f.err
+}
+
+func (f *fakeMarketVisibility) GetUserGroupRates(context.Context, int64) (map[int64]float64, error) {
+	return f.rates, f.ratesErr
 }
 
 // newFakeMarketVisibility 返回一个“登录但没有任何专属授权、未开启公开分组限制”
@@ -45,13 +52,23 @@ func newFakeMarketVisibility() *fakeMarketVisibility {
 // marketGroupResponse 是测试侧的解码形状。Stats 用 any 而不是指针：
 // JSON 里的 null 解码后为 nil，而字段缺失同样为 nil，所以另用原始 JSON 断言键存在。
 type marketGroupResponse struct {
-	ID             int64    `json:"id"`
-	Name           string   `json:"name"`
-	Platform       string   `json:"platform"`
-	RateMultiplier float64  `json:"rate_multiplier"`
-	Models         []string `json:"models"`
-	Status         string   `json:"status"`
-	Stats          any      `json:"stats"`
+	ID             int64              `json:"id"`
+	Name           string             `json:"name"`
+	Platform       string             `json:"platform"`
+	RateMultiplier float64            `json:"rate_multiplier"`
+	RateIsEstimate bool               `json:"rate_is_estimate"`
+	PeakRate       *marketPeakRateDTO `json:"peak_rate"`
+	Models         []string           `json:"models"`
+	Status         string             `json:"status"`
+	Stats          any                `json:"stats"`
+}
+
+// marketPeakRateDTO 与 handler 的 marketPeakRate 同形，测试侧独立声明避免耦合实现。
+type marketPeakRateDTO struct {
+	Start      string  `json:"start"`
+	End        string  `json:"end"`
+	Multiplier float64 `json:"multiplier"`
+	ActiveNow  bool    `json:"active_now"`
 }
 
 // doGET 模拟一次带上登录身份的 GET /api/v1/market/groups。
@@ -87,11 +104,16 @@ func marketFixture() []service.PlazaGroup {
 	merchantB := int64(202)
 	return []service.PlazaGroup{
 		{
-			ID:             2,
-			Name:           "B 商户分组",
-			Platform:       service.PlatformAnthropic,
-			RateMultiplier: 0.3,
-			MerchantID:     &merchantB,
+			ID:                 2,
+			Name:               "B 商户分组",
+			Platform:           service.PlatformAnthropic,
+			SubscriptionType:   service.SubscriptionTypeSubscription,
+			RateMultiplier:     0.3,
+			PeakRateEnabled:    true,
+			PeakStart:          "00:00",
+			PeakEnd:            "23:59",
+			PeakRateMultiplier: 1.5,
+			MerchantID:         &merchantB,
 			Models: []service.PlazaModel{
 				{Name: "claude-opus-4-1", Platform: service.PlatformAnthropic},
 			},
@@ -224,12 +246,57 @@ func TestMarketGroupsHidesMerchantIdentityAndUpstream(t *testing.T) {
 		require.Falsef(t, exists, "market DTO must not expose %q", key)
 	}
 
-	allowed := []string{"id", "name", "platform", "rate_multiplier", "models", "status", "stats"}
+	allowed := []string{"id", "name", "platform", "rate_multiplier", "rate_is_estimate", "peak_rate", "models", "status", "stats"}
 	require.Len(t, envelope.Data[0], len(allowed), "unexpected extra fields in market DTO")
 	for _, key := range allowed {
 		_, exists := envelope.Data[0][key]
 		require.Truef(t, exists, "market DTO must expose %q", key)
 	}
+}
+
+func TestMarketGroupsUsesUserRateAndSortsByIt(t *testing.T) {
+	// 用户专属倍率覆盖基础倍率（与网关一致）：B 分组基础 0.3，用户专属 0.05，
+	// 应当排在 A 分组（0.2）前面，且展示 0.05 而不是 0.3。
+	resp, _ := doGETWithVisibility(t, &fakeMarketGroupSource{groups: marketFixture()}, &fakeMarketVisibility{
+		allowed: map[int64]struct{}{},
+		rates:   map[int64]float64{2: 0.05},
+	})
+	require.Len(t, resp, 2)
+	require.Equal(t, int64(2), resp[0].ID)
+	require.InDelta(t, 0.05, resp[0].RateMultiplier, 1e-12)
+	require.False(t, resp[0].RateIsEstimate)
+	require.Equal(t, int64(1), resp[1].ID)
+	require.InDelta(t, 0.2, resp[1].RateMultiplier, 1e-12)
+}
+
+func TestMarketGroupsMarksRateEstimateWhenUserRatesUnavailable(t *testing.T) {
+	resp, _ := doGETWithVisibility(t, &fakeMarketGroupSource{groups: marketFixture()}, &fakeMarketVisibility{
+		allowed:  map[int64]struct{}{},
+		ratesErr: errors.New("rate store down"),
+	})
+	require.NotEmpty(t, resp)
+	for i := range resp {
+		require.True(t, resp[i].RateIsEstimate,
+			"falling back to the group rate must be flagged as an estimate")
+	}
+}
+
+func TestMarketGroupsExposesPeakRateSeparately(t *testing.T) {
+	resp, _ := doGET(t, &fakeMarketGroupSource{groups: marketFixture()})
+	var groupB *marketGroupResponse
+	for i := range resp {
+		if resp[i].ID == 2 {
+			groupB = &resp[i]
+			break
+		}
+	}
+	require.NotNil(t, groupB)
+	require.NotNil(t, groupB.PeakRate)
+	require.Equal(t, "00:00", groupB.PeakRate.Start)
+	require.Equal(t, "23:59", groupB.PeakRate.End)
+	require.InDelta(t, 1.5, groupB.PeakRate.Multiplier, 1e-12)
+	// 倍率本身不并入峰时因子；峰时单独标注，由前端提示。
+	require.InDelta(t, 0.3, groupB.RateMultiplier, 1e-12)
 }
 
 func TestMarketGroupsEmptyShelfIsArray(t *testing.T) {
@@ -277,4 +344,21 @@ func TestMarketGroupsRequiresAuth(t *testing.T) {
 	h.List(c)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestMarketGroupsMarksEstimateWhenImageOrVideoRateIsIndependent(t *testing.T) {
+	merchantID := int64(101)
+	groups := []service.PlazaGroup{{
+		ID:                   9,
+		Name:                 "image-independent",
+		Platform:             service.PlatformAnthropic,
+		RateMultiplier:       0.2,
+		ImageRateIndependent: true,
+		MerchantID:           &merchantID,
+		Models:               []service.PlazaModel{{Name: "claude-sonnet-4-5", Platform: service.PlatformAnthropic}},
+	}}
+	resp, _ := doGET(t, &fakeMarketGroupSource{groups: groups})
+	require.Len(t, resp, 1)
+	require.True(t, resp[0].RateIsEstimate,
+		"a group with an independent image rate cannot be represented by one token rate")
 }

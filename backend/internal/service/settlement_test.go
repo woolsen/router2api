@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/woolsen/router2api/internal/config"
+	"github.com/stretchr/testify/require"
 )
 
 // fakeSettlementUsage is one usage_logs row seeded into the fake repository.
@@ -29,6 +30,7 @@ type fakeSettlementRepo struct {
 
 	aggregateErrByMerchant   map[int64]error
 	aggregateCallsByMerchant map[int64]int
+	unknownCommissionRows    map[int64]int64
 	lastMerchantID           int64
 	lastFrom                 time.Time
 	lastTo                   time.Time
@@ -40,6 +42,7 @@ func newFakeSettlementRepo() *fakeSettlementRepo {
 		settlements:              make(map[string]*Settlement),
 		aggregateErrByMerchant:   make(map[int64]error),
 		aggregateCallsByMerchant: make(map[int64]int),
+		unknownCommissionRows:    make(map[int64]int64),
 	}
 }
 
@@ -57,6 +60,7 @@ func (r *fakeSettlementRepo) AggregateUsage(
 	}
 
 	var agg SettlementUsageAggregate
+	agg.ExcludedUnknownCommissionRows = r.unknownCommissionRows[merchantID]
 	for _, u := range r.usages[merchantID] {
 		if !u.at.IsZero() && (u.at.Before(from) || !u.at.Before(to)) {
 			continue
@@ -174,6 +178,29 @@ func TestGenerateSettlementIsIdempotentPerPeriod(t *testing.T) {
 	if first.ID != second.ID {
 		t.Fatalf("same merchant+period must return the same settlement, got %d and %d", first.ID, second.ID)
 	}
+}
+
+func TestGenerateSettlementRefusesUnknownCommissionRows(t *testing.T) {
+	ctx := context.Background()
+	repo := newFakeSettlementRepo()
+	from := time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)
+	to := from.Add(7 * 24 * time.Hour)
+	repo.usages[1] = []fakeSettlementUsage{{cost: 10, rate: 0.08, at: from.Add(time.Hour)}}
+	repo.unknownCommissionRows[1] = 2
+	svc := newTestSettlementService(repo, to.Add(SettlementCloseDelay+time.Hour))
+
+	got, err := svc.Generate(ctx, 1, from, to)
+	require.ErrorIs(t, err, ErrSettlementUnknownCommission)
+	require.Nil(t, got, "must not create a settlement while commission is unknown")
+	require.Empty(t, repo.settlements, "no settlement may be persisted before rate backfill")
+
+	// 回填后（NULL 行数归零）重跑同一账期必须正常落单，金额覆盖全部用量。
+	repo.unknownCommissionRows[1] = 0
+	s, err := svc.Generate(ctx, 1, from, to)
+	require.NoError(t, err)
+	require.NotNil(t, s)
+	require.InDelta(t, 10, s.GrossCost, 1e-9)
+	require.InDelta(t, 0.8, s.Commission, 1e-9)
 }
 
 func TestGenerateSettlementSettlesFullPeriod(t *testing.T) {
