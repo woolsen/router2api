@@ -22,6 +22,8 @@ type Group struct {
 	I18n           GroupI18n // 名称与描述的界面语言译文；缺失的语言沿用 Name/Description
 	Platform       string
 	RateMultiplier float64
+	// MerchantID 是该分组归属的入驻商户；nil 表示平台自营分组。
+	MerchantID *int64
 	// 高峰时段倍率：peak_rate_enabled 为 true 且当前时刻处于 [PeakStart, PeakEnd) 时，
 	// token 计费倍率额外乘以 PeakRateMultiplier。详见 PeakMultiplierAt。
 	PeakRateEnabled    bool

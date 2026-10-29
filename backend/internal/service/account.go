@@ -61,6 +61,8 @@ type Account struct {
 
 	ParentAccountID *int64 // non-nil → 影子账号（不持凭据，透传母账号凭据）
 	QuotaDimension  string // 用量维度："" / "global" / "spark"
+	// MerchantID 是该账号服务的入驻商户；nil 表示平台自营。
+	MerchantID *int64
 
 	Proxy         *Proxy
 	AccountGroups []AccountGroup

@@ -195,6 +195,11 @@ func ParentAccountID(v int64) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldParentAccountID, v))
 }
 
+// MerchantID applies equality check predicate on the "merchant_id" field. It's identical to MerchantIDEQ.
+func MerchantID(v int64) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldMerchantID, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldCreatedAt, v))
@@ -1603,6 +1608,56 @@ func QuotaDimensionIn(vs ...QuotaDimension) predicate.Account {
 // QuotaDimensionNotIn applies the NotIn predicate on the "quota_dimension" field.
 func QuotaDimensionNotIn(vs ...QuotaDimension) predicate.Account {
 	return predicate.Account(sql.FieldNotIn(FieldQuotaDimension, vs...))
+}
+
+// MerchantIDEQ applies the EQ predicate on the "merchant_id" field.
+func MerchantIDEQ(v int64) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldMerchantID, v))
+}
+
+// MerchantIDNEQ applies the NEQ predicate on the "merchant_id" field.
+func MerchantIDNEQ(v int64) predicate.Account {
+	return predicate.Account(sql.FieldNEQ(FieldMerchantID, v))
+}
+
+// MerchantIDIn applies the In predicate on the "merchant_id" field.
+func MerchantIDIn(vs ...int64) predicate.Account {
+	return predicate.Account(sql.FieldIn(FieldMerchantID, vs...))
+}
+
+// MerchantIDNotIn applies the NotIn predicate on the "merchant_id" field.
+func MerchantIDNotIn(vs ...int64) predicate.Account {
+	return predicate.Account(sql.FieldNotIn(FieldMerchantID, vs...))
+}
+
+// MerchantIDGT applies the GT predicate on the "merchant_id" field.
+func MerchantIDGT(v int64) predicate.Account {
+	return predicate.Account(sql.FieldGT(FieldMerchantID, v))
+}
+
+// MerchantIDGTE applies the GTE predicate on the "merchant_id" field.
+func MerchantIDGTE(v int64) predicate.Account {
+	return predicate.Account(sql.FieldGTE(FieldMerchantID, v))
+}
+
+// MerchantIDLT applies the LT predicate on the "merchant_id" field.
+func MerchantIDLT(v int64) predicate.Account {
+	return predicate.Account(sql.FieldLT(FieldMerchantID, v))
+}
+
+// MerchantIDLTE applies the LTE predicate on the "merchant_id" field.
+func MerchantIDLTE(v int64) predicate.Account {
+	return predicate.Account(sql.FieldLTE(FieldMerchantID, v))
+}
+
+// MerchantIDIsNil applies the IsNil predicate on the "merchant_id" field.
+func MerchantIDIsNil() predicate.Account {
+	return predicate.Account(sql.FieldIsNull(FieldMerchantID))
+}
+
+// MerchantIDNotNil applies the NotNil predicate on the "merchant_id" field.
+func MerchantIDNotNil() predicate.Account {
+	return predicate.Account(sql.FieldNotNull(FieldMerchantID))
 }
 
 // HasGroups applies the HasEdge predicate on the "groups" edge.

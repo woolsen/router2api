@@ -419,6 +419,20 @@ func (_c *AccountCreate) SetNillableQuotaDimension(v *account.QuotaDimension) *A
 	return _c
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (_c *AccountCreate) SetMerchantID(v int64) *AccountCreate {
+	_c.mutation.SetMerchantID(v)
+	return _c
+}
+
+// SetNillableMerchantID sets the "merchant_id" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableMerchantID(v *int64) *AccountCreate {
+	if v != nil {
+		_c.SetMerchantID(*v)
+	}
+	return _c
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by IDs.
 func (_c *AccountCreate) AddGroupIDs(ids ...int64) *AccountCreate {
 	_c.mutation.AddGroupIDs(ids...)
@@ -800,6 +814,10 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.QuotaDimension(); ok {
 		_spec.SetField(account.FieldQuotaDimension, field.TypeEnum, value)
 		_node.QuotaDimension = value
+	}
+	if value, ok := _c.mutation.MerchantID(); ok {
+		_spec.SetField(account.FieldMerchantID, field.TypeInt64, value)
+		_node.MerchantID = &value
 	}
 	if nodes := _c.mutation.GroupsIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1431,6 +1449,30 @@ func (u *AccountUpsert) UpdateQuotaDimension() *AccountUpsert {
 	return u
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (u *AccountUpsert) SetMerchantID(v int64) *AccountUpsert {
+	u.Set(account.FieldMerchantID, v)
+	return u
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateMerchantID() *AccountUpsert {
+	u.SetExcluded(account.FieldMerchantID)
+	return u
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *AccountUpsert) AddMerchantID(v int64) *AccountUpsert {
+	u.Add(account.FieldMerchantID, v)
+	return u
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *AccountUpsert) ClearMerchantID() *AccountUpsert {
+	u.SetNull(account.FieldMerchantID)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -2047,6 +2089,34 @@ func (u *AccountUpsertOne) SetQuotaDimension(v account.QuotaDimension) *AccountU
 func (u *AccountUpsertOne) UpdateQuotaDimension() *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateQuotaDimension()
+	})
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *AccountUpsertOne) SetMerchantID(v int64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetMerchantID(v)
+	})
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *AccountUpsertOne) AddMerchantID(v int64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddMerchantID(v)
+	})
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateMerchantID() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateMerchantID()
+	})
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *AccountUpsertOne) ClearMerchantID() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.ClearMerchantID()
 	})
 }
 
@@ -2832,6 +2902,34 @@ func (u *AccountUpsertBulk) SetQuotaDimension(v account.QuotaDimension) *Account
 func (u *AccountUpsertBulk) UpdateQuotaDimension() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateQuotaDimension()
+	})
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *AccountUpsertBulk) SetMerchantID(v int64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetMerchantID(v)
+	})
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *AccountUpsertBulk) AddMerchantID(v int64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddMerchantID(v)
+	})
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateMerchantID() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateMerchantID()
+	})
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *AccountUpsertBulk) ClearMerchantID() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.ClearMerchantID()
 	})
 }
 

@@ -311,6 +311,10 @@ func (Group) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(0).
 			Comment("安全缓冲，小数；与 margin 相加后从下游倍率中扣除，默认 0"),
+		field.Int64("merchant_id").
+			Optional().
+			Nillable().
+			Comment("所属商户；nil 表示平台自营"),
 	}
 }
 
@@ -340,6 +344,7 @@ func (Group) Indexes() []ent.Index {
 		index.Fields("is_exclusive"),
 		index.Fields("deleted_at"),
 		index.Fields("sort_order"),
+		index.Fields("merchant_id"),
 		index.Fields("duplicate_operation_id").
 			Unique().
 			StorageKey("idx_groups_duplicate_operation_id_active").

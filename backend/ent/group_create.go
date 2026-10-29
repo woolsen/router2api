@@ -926,6 +926,20 @@ func (_c *GroupCreate) SetNillableProfitSafetyBuffer(v *float64) *GroupCreate {
 	return _c
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (_c *GroupCreate) SetMerchantID(v int64) *GroupCreate {
+	_c.mutation.SetMerchantID(v)
+	return _c
+}
+
+// SetNillableMerchantID sets the "merchant_id" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableMerchantID(v *int64) *GroupCreate {
+	if v != nil {
+		_c.SetMerchantID(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *GroupCreate) AddAPIKeyIDs(ids ...int64) *GroupCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -1750,6 +1764,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ProfitSafetyBuffer(); ok {
 		_spec.SetField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
 		_node.ProfitSafetyBuffer = value
+	}
+	if value, ok := _c.mutation.MerchantID(); ok {
+		_spec.SetField(group.FieldMerchantID, field.TypeInt64, value)
+		_node.MerchantID = &value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -2984,6 +3002,30 @@ func (u *GroupUpsert) UpdateProfitSafetyBuffer() *GroupUpsert {
 // AddProfitSafetyBuffer adds v to the "profit_safety_buffer" field.
 func (u *GroupUpsert) AddProfitSafetyBuffer(v float64) *GroupUpsert {
 	u.Add(group.FieldProfitSafetyBuffer, v)
+	return u
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *GroupUpsert) SetMerchantID(v int64) *GroupUpsert {
+	u.Set(group.FieldMerchantID, v)
+	return u
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateMerchantID() *GroupUpsert {
+	u.SetExcluded(group.FieldMerchantID)
+	return u
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *GroupUpsert) AddMerchantID(v int64) *GroupUpsert {
+	u.Add(group.FieldMerchantID, v)
+	return u
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *GroupUpsert) ClearMerchantID() *GroupUpsert {
+	u.SetNull(group.FieldMerchantID)
 	return u
 }
 
@@ -4292,6 +4334,34 @@ func (u *GroupUpsertOne) AddProfitSafetyBuffer(v float64) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateProfitSafetyBuffer() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateProfitSafetyBuffer()
+	})
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *GroupUpsertOne) SetMerchantID(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetMerchantID(v)
+	})
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *GroupUpsertOne) AddMerchantID(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddMerchantID(v)
+	})
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateMerchantID() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateMerchantID()
+	})
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *GroupUpsertOne) ClearMerchantID() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearMerchantID()
 	})
 }
 
@@ -5766,6 +5836,34 @@ func (u *GroupUpsertBulk) AddProfitSafetyBuffer(v float64) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateProfitSafetyBuffer() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateProfitSafetyBuffer()
+	})
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *GroupUpsertBulk) SetMerchantID(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetMerchantID(v)
+	})
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *GroupUpsertBulk) AddMerchantID(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddMerchantID(v)
+	})
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateMerchantID() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateMerchantID()
+	})
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *GroupUpsertBulk) ClearMerchantID() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearMerchantID()
 	})
 }
 

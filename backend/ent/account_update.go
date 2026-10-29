@@ -564,6 +564,33 @@ func (_u *AccountUpdate) SetNillableQuotaDimension(v *account.QuotaDimension) *A
 	return _u
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (_u *AccountUpdate) SetMerchantID(v int64) *AccountUpdate {
+	_u.mutation.ResetMerchantID()
+	_u.mutation.SetMerchantID(v)
+	return _u
+}
+
+// SetNillableMerchantID sets the "merchant_id" field if the given value is not nil.
+func (_u *AccountUpdate) SetNillableMerchantID(v *int64) *AccountUpdate {
+	if v != nil {
+		_u.SetMerchantID(*v)
+	}
+	return _u
+}
+
+// AddMerchantID adds value to the "merchant_id" field.
+func (_u *AccountUpdate) AddMerchantID(v int64) *AccountUpdate {
+	_u.mutation.AddMerchantID(v)
+	return _u
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (_u *AccountUpdate) ClearMerchantID() *AccountUpdate {
+	_u.mutation.ClearMerchantID()
+	return _u
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by IDs.
 func (_u *AccountUpdate) AddGroupIDs(ids ...int64) *AccountUpdate {
 	_u.mutation.AddGroupIDs(ids...)
@@ -945,6 +972,15 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.QuotaDimension(); ok {
 		_spec.SetField(account.FieldQuotaDimension, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.MerchantID(); ok {
+		_spec.SetField(account.FieldMerchantID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMerchantID(); ok {
+		_spec.AddField(account.FieldMerchantID, field.TypeInt64, value)
+	}
+	if _u.mutation.MerchantIDCleared() {
+		_spec.ClearField(account.FieldMerchantID, field.TypeInt64)
 	}
 	if _u.mutation.GroupsCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1704,6 +1740,33 @@ func (_u *AccountUpdateOne) SetNillableQuotaDimension(v *account.QuotaDimension)
 	return _u
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (_u *AccountUpdateOne) SetMerchantID(v int64) *AccountUpdateOne {
+	_u.mutation.ResetMerchantID()
+	_u.mutation.SetMerchantID(v)
+	return _u
+}
+
+// SetNillableMerchantID sets the "merchant_id" field if the given value is not nil.
+func (_u *AccountUpdateOne) SetNillableMerchantID(v *int64) *AccountUpdateOne {
+	if v != nil {
+		_u.SetMerchantID(*v)
+	}
+	return _u
+}
+
+// AddMerchantID adds value to the "merchant_id" field.
+func (_u *AccountUpdateOne) AddMerchantID(v int64) *AccountUpdateOne {
+	_u.mutation.AddMerchantID(v)
+	return _u
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (_u *AccountUpdateOne) ClearMerchantID() *AccountUpdateOne {
+	_u.mutation.ClearMerchantID()
+	return _u
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by IDs.
 func (_u *AccountUpdateOne) AddGroupIDs(ids ...int64) *AccountUpdateOne {
 	_u.mutation.AddGroupIDs(ids...)
@@ -2115,6 +2178,15 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 	}
 	if value, ok := _u.mutation.QuotaDimension(); ok {
 		_spec.SetField(account.FieldQuotaDimension, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.MerchantID(); ok {
+		_spec.SetField(account.FieldMerchantID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMerchantID(); ok {
+		_spec.AddField(account.FieldMerchantID, field.TypeInt64, value)
+	}
+	if _u.mutation.MerchantIDCleared() {
+		_spec.ClearField(account.FieldMerchantID, field.TypeInt64)
 	}
 	if _u.mutation.GroupsCleared() {
 		edge := &sqlgraph.EdgeSpec{

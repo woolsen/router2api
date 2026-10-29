@@ -350,6 +350,11 @@ func ProfitSafetyBuffer(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldProfitSafetyBuffer, v))
 }
 
+// MerchantID applies equality check predicate on the "merchant_id" field. It's identical to MerchantIDEQ.
+func MerchantID(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldMerchantID, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldCreatedAt, v))
@@ -2663,6 +2668,56 @@ func ProfitSafetyBufferLT(v float64) predicate.Group {
 // ProfitSafetyBufferLTE applies the LTE predicate on the "profit_safety_buffer" field.
 func ProfitSafetyBufferLTE(v float64) predicate.Group {
 	return predicate.Group(sql.FieldLTE(FieldProfitSafetyBuffer, v))
+}
+
+// MerchantIDEQ applies the EQ predicate on the "merchant_id" field.
+func MerchantIDEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldMerchantID, v))
+}
+
+// MerchantIDNEQ applies the NEQ predicate on the "merchant_id" field.
+func MerchantIDNEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldMerchantID, v))
+}
+
+// MerchantIDIn applies the In predicate on the "merchant_id" field.
+func MerchantIDIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldMerchantID, vs...))
+}
+
+// MerchantIDNotIn applies the NotIn predicate on the "merchant_id" field.
+func MerchantIDNotIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldMerchantID, vs...))
+}
+
+// MerchantIDGT applies the GT predicate on the "merchant_id" field.
+func MerchantIDGT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldMerchantID, v))
+}
+
+// MerchantIDGTE applies the GTE predicate on the "merchant_id" field.
+func MerchantIDGTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldMerchantID, v))
+}
+
+// MerchantIDLT applies the LT predicate on the "merchant_id" field.
+func MerchantIDLT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldMerchantID, v))
+}
+
+// MerchantIDLTE applies the LTE predicate on the "merchant_id" field.
+func MerchantIDLTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldMerchantID, v))
+}
+
+// MerchantIDIsNil applies the IsNil predicate on the "merchant_id" field.
+func MerchantIDIsNil() predicate.Group {
+	return predicate.Group(sql.FieldIsNull(FieldMerchantID))
+}
+
+// MerchantIDNotNil applies the NotNil predicate on the "merchant_id" field.
+func MerchantIDNotNil() predicate.Group {
+	return predicate.Group(sql.FieldNotNull(FieldMerchantID))
 }
 
 // HasAPIKeys applies the HasEdge predicate on the "api_keys" edge.

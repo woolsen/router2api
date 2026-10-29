@@ -105,6 +105,7 @@ func TestAccountReadableSnapshot_DenylistTripwire(t *testing.T) {
 		"TempUnschedulableUntil": {}, "TempUnschedulableReason": {},
 		"SessionWindowStart": {}, "SessionWindowEnd": {}, "SessionWindowStatus": {},
 		"ParentAccountID": {}, "QuotaDimension": {}, "GroupIDs": {},
+		"MerchantID": {},
 	}
 	tp := reflect.TypeOf(Account{})
 	for i := 0; i < tp.NumField(); i++ {

@@ -2321,6 +2321,8 @@ type AccountMutation struct {
 	session_window_end          *time.Time
 	session_window_status       *string
 	quota_dimension             *account.QuotaDimension
+	merchant_id                 *int64
+	addmerchant_id              *int64
 	clearedFields               map[string]struct{}
 	groups                      map[int64]struct{}
 	removedgroups               map[int64]struct{}
@@ -3877,6 +3879,76 @@ func (m *AccountMutation) ResetQuotaDimension() {
 	m.quota_dimension = nil
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (m *AccountMutation) SetMerchantID(i int64) {
+	m.merchant_id = &i
+	m.addmerchant_id = nil
+}
+
+// MerchantID returns the value of the "merchant_id" field in the mutation.
+func (m *AccountMutation) MerchantID() (r int64, exists bool) {
+	v := m.merchant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMerchantID returns the old "merchant_id" field's value of the Account entity.
+// If the Account object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountMutation) OldMerchantID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMerchantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMerchantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMerchantID: %w", err)
+	}
+	return oldValue.MerchantID, nil
+}
+
+// AddMerchantID adds i to the "merchant_id" field.
+func (m *AccountMutation) AddMerchantID(i int64) {
+	if m.addmerchant_id != nil {
+		*m.addmerchant_id += i
+	} else {
+		m.addmerchant_id = &i
+	}
+}
+
+// AddedMerchantID returns the value that was added to the "merchant_id" field in this mutation.
+func (m *AccountMutation) AddedMerchantID() (r int64, exists bool) {
+	v := m.addmerchant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (m *AccountMutation) ClearMerchantID() {
+	m.merchant_id = nil
+	m.addmerchant_id = nil
+	m.clearedFields[account.FieldMerchantID] = struct{}{}
+}
+
+// MerchantIDCleared returns if the "merchant_id" field was cleared in this mutation.
+func (m *AccountMutation) MerchantIDCleared() bool {
+	_, ok := m.clearedFields[account.FieldMerchantID]
+	return ok
+}
+
+// ResetMerchantID resets all changes to the "merchant_id" field.
+func (m *AccountMutation) ResetMerchantID() {
+	m.merchant_id = nil
+	m.addmerchant_id = nil
+	delete(m.clearedFields, account.FieldMerchantID)
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by ids.
 func (m *AccountMutation) AddGroupIDs(ids ...int64) {
 	if m.groups == nil {
@@ -4140,7 +4212,7 @@ func (m *AccountMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountMutation) Fields() []string {
-	fields := make([]string, 0, 31)
+	fields := make([]string, 0, 32)
 	if m.created_at != nil {
 		fields = append(fields, account.FieldCreatedAt)
 	}
@@ -4234,6 +4306,9 @@ func (m *AccountMutation) Fields() []string {
 	if m.quota_dimension != nil {
 		fields = append(fields, account.FieldQuotaDimension)
 	}
+	if m.merchant_id != nil {
+		fields = append(fields, account.FieldMerchantID)
+	}
 	return fields
 }
 
@@ -4304,6 +4379,8 @@ func (m *AccountMutation) Field(name string) (ent.Value, bool) {
 		return m.ParentAccountID()
 	case account.FieldQuotaDimension:
 		return m.QuotaDimension()
+	case account.FieldMerchantID:
+		return m.MerchantID()
 	}
 	return nil, false
 }
@@ -4375,6 +4452,8 @@ func (m *AccountMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldParentAccountID(ctx)
 	case account.FieldQuotaDimension:
 		return m.OldQuotaDimension(ctx)
+	case account.FieldMerchantID:
+		return m.OldMerchantID(ctx)
 	}
 	return nil, fmt.Errorf("unknown Account field %s", name)
 }
@@ -4601,6 +4680,13 @@ func (m *AccountMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetQuotaDimension(v)
 		return nil
+	case account.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMerchantID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Account field %s", name)
 }
@@ -4624,6 +4710,9 @@ func (m *AccountMutation) AddedFields() []string {
 	if m.addrate_multiplier != nil {
 		fields = append(fields, account.FieldRateMultiplier)
 	}
+	if m.addmerchant_id != nil {
+		fields = append(fields, account.FieldMerchantID)
+	}
 	return fields
 }
 
@@ -4642,6 +4731,8 @@ func (m *AccountMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedPriority()
 	case account.FieldRateMultiplier:
 		return m.AddedRateMultiplier()
+	case account.FieldMerchantID:
+		return m.AddedMerchantID()
 	}
 	return nil, false
 }
@@ -4685,6 +4776,13 @@ func (m *AccountMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddRateMultiplier(v)
+		return nil
+	case account.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMerchantID(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Account numeric field %s", name)
@@ -4744,6 +4842,9 @@ func (m *AccountMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(account.FieldParentAccountID) {
 		fields = append(fields, account.FieldParentAccountID)
+	}
+	if m.FieldCleared(account.FieldMerchantID) {
+		fields = append(fields, account.FieldMerchantID)
 	}
 	return fields
 }
@@ -4809,6 +4910,9 @@ func (m *AccountMutation) ClearField(name string) error {
 		return nil
 	case account.FieldParentAccountID:
 		m.ClearParentAccountID()
+		return nil
+	case account.FieldMerchantID:
+		m.ClearMerchantID()
 		return nil
 	}
 	return fmt.Errorf("unknown Account nullable field %s", name)
@@ -4910,6 +5014,9 @@ func (m *AccountMutation) ResetField(name string) error {
 		return nil
 	case account.FieldQuotaDimension:
 		m.ResetQuotaDimension()
+		return nil
+	case account.FieldMerchantID:
+		m.ResetMerchantID()
 		return nil
 	}
 	return fmt.Errorf("unknown Account field %s", name)
@@ -22181,6 +22288,8 @@ type GroupMutation struct {
 	addprofit_min_margin                    *float64
 	profit_safety_buffer                    *float64
 	addprofit_safety_buffer                 *float64
+	merchant_id                             *int64
+	addmerchant_id                          *int64
 	clearedFields                           map[string]struct{}
 	api_keys                                map[int64]struct{}
 	removedapi_keys                         map[int64]struct{}
@@ -25639,6 +25748,76 @@ func (m *GroupMutation) ResetProfitSafetyBuffer() {
 	m.addprofit_safety_buffer = nil
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (m *GroupMutation) SetMerchantID(i int64) {
+	m.merchant_id = &i
+	m.addmerchant_id = nil
+}
+
+// MerchantID returns the value of the "merchant_id" field in the mutation.
+func (m *GroupMutation) MerchantID() (r int64, exists bool) {
+	v := m.merchant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMerchantID returns the old "merchant_id" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldMerchantID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMerchantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMerchantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMerchantID: %w", err)
+	}
+	return oldValue.MerchantID, nil
+}
+
+// AddMerchantID adds i to the "merchant_id" field.
+func (m *GroupMutation) AddMerchantID(i int64) {
+	if m.addmerchant_id != nil {
+		*m.addmerchant_id += i
+	} else {
+		m.addmerchant_id = &i
+	}
+}
+
+// AddedMerchantID returns the value that was added to the "merchant_id" field in this mutation.
+func (m *GroupMutation) AddedMerchantID() (r int64, exists bool) {
+	v := m.addmerchant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (m *GroupMutation) ClearMerchantID() {
+	m.merchant_id = nil
+	m.addmerchant_id = nil
+	m.clearedFields[group.FieldMerchantID] = struct{}{}
+}
+
+// MerchantIDCleared returns if the "merchant_id" field was cleared in this mutation.
+func (m *GroupMutation) MerchantIDCleared() bool {
+	_, ok := m.clearedFields[group.FieldMerchantID]
+	return ok
+}
+
+// ResetMerchantID resets all changes to the "merchant_id" field.
+func (m *GroupMutation) ResetMerchantID() {
+	m.merchant_id = nil
+	m.addmerchant_id = nil
+	delete(m.clearedFields, group.FieldMerchantID)
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by ids.
 func (m *GroupMutation) AddAPIKeyIDs(ids ...int64) {
 	if m.api_keys == nil {
@@ -25997,7 +26176,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 68)
+	fields := make([]string, 0, 69)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -26202,6 +26381,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.profit_safety_buffer != nil {
 		fields = append(fields, group.FieldProfitSafetyBuffer)
 	}
+	if m.merchant_id != nil {
+		fields = append(fields, group.FieldMerchantID)
+	}
 	return fields
 }
 
@@ -26346,6 +26528,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.ProfitMinMargin()
 	case group.FieldProfitSafetyBuffer:
 		return m.ProfitSafetyBuffer()
+	case group.FieldMerchantID:
+		return m.MerchantID()
 	}
 	return nil, false
 }
@@ -26491,6 +26675,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldProfitMinMargin(ctx)
 	case group.FieldProfitSafetyBuffer:
 		return m.OldProfitSafetyBuffer(ctx)
+	case group.FieldMerchantID:
+		return m.OldMerchantID(ctx)
 	}
 	return nil, fmt.Errorf("unknown Group field %s", name)
 }
@@ -26976,6 +27162,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetProfitSafetyBuffer(v)
 		return nil
+	case group.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMerchantID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Group field %s", name)
 }
@@ -27065,6 +27258,9 @@ func (m *GroupMutation) AddedFields() []string {
 	if m.addprofit_safety_buffer != nil {
 		fields = append(fields, group.FieldProfitSafetyBuffer)
 	}
+	if m.addmerchant_id != nil {
+		fields = append(fields, group.FieldMerchantID)
+	}
 	return fields
 }
 
@@ -27127,6 +27323,8 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedProfitMinMargin()
 	case group.FieldProfitSafetyBuffer:
 		return m.AddedProfitSafetyBuffer()
+	case group.FieldMerchantID:
+		return m.AddedMerchantID()
 	}
 	return nil, false
 }
@@ -27325,6 +27523,13 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddProfitSafetyBuffer(v)
 		return nil
+	case group.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMerchantID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Group numeric field %s", name)
 }
@@ -27398,6 +27603,9 @@ func (m *GroupMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(group.FieldModelRouting) {
 		fields = append(fields, group.FieldModelRouting)
+	}
+	if m.FieldCleared(group.FieldMerchantID) {
+		fields = append(fields, group.FieldMerchantID)
 	}
 	return fields
 }
@@ -27478,6 +27686,9 @@ func (m *GroupMutation) ClearField(name string) error {
 		return nil
 	case group.FieldModelRouting:
 		m.ClearModelRouting()
+		return nil
+	case group.FieldMerchantID:
+		m.ClearMerchantID()
 		return nil
 	}
 	return fmt.Errorf("unknown Group nullable field %s", name)
@@ -27690,6 +27901,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldProfitSafetyBuffer:
 		m.ResetProfitSafetyBuffer()
+		return nil
+	case group.FieldMerchantID:
+		m.ResetMerchantID()
 		return nil
 	}
 	return fmt.Errorf("unknown Group field %s", name)

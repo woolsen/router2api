@@ -201,6 +201,10 @@ func (Account) Fields() []ent.Field {
 			Comment("Parent account id for a linked spark shadow (NULL = normal)."),
 		field.Enum("quota_dimension").Values("global", "spark").Default("global").
 			Comment("'global' (default) or 'spark' (shadow reads codex_bengalfox)."),
+		field.Int64("merchant_id").
+			Optional().
+			Nillable().
+			Comment("所属商户；nil 表示平台自营"),
 	}
 }
 
@@ -249,5 +253,6 @@ func (Account) Indexes() []ent.Index {
 		index.Fields("priority", "status"),
 		index.Fields("deleted_at"), // 软删除查询优化
 		index.Fields("parent_account_id"),
+		index.Fields("merchant_id"),
 	}
 }

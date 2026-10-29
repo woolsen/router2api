@@ -78,6 +78,8 @@ const (
 	FieldParentAccountID = "parent_account_id"
 	// FieldQuotaDimension holds the string denoting the quota_dimension field in the database.
 	FieldQuotaDimension = "quota_dimension"
+	// FieldMerchantID holds the string denoting the merchant_id field in the database.
+	FieldMerchantID = "merchant_id"
 	// EdgeGroups holds the string denoting the groups edge name in mutations.
 	EdgeGroups = "groups"
 	// EdgeProxy holds the string denoting the proxy edge name in mutations.
@@ -162,6 +164,7 @@ var Columns = []string{
 	FieldSessionWindowStatus,
 	FieldParentAccountID,
 	FieldQuotaDimension,
+	FieldMerchantID,
 }
 
 var (
@@ -399,6 +402,11 @@ func ByParentAccountID(opts ...sql.OrderTermOption) OrderOption {
 // ByQuotaDimension orders the results by the quota_dimension field.
 func ByQuotaDimension(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldQuotaDimension, opts...).ToFunc()
+}
+
+// ByMerchantID orders the results by the merchant_id field.
+func ByMerchantID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMerchantID, opts...).ToFunc()
 }
 
 // ByGroupsCount orders the results by groups count.

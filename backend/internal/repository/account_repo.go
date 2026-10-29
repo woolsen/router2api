@@ -155,7 +155,8 @@ func createAccountRecord(ctx context.Context, client *dbent.Client, account *ser
 		SetStatus(account.Status).
 		SetErrorMessage(account.ErrorMessage).
 		SetSchedulable(account.Schedulable).
-		SetAutoPauseOnExpired(account.AutoPauseOnExpired)
+		SetAutoPauseOnExpired(account.AutoPauseOnExpired).
+		SetNillableMerchantID(account.MerchantID)
 
 	if account.RateMultiplier != nil {
 		builder.SetRateMultiplier(*account.RateMultiplier)
@@ -617,6 +618,7 @@ func (r *accountRepository) updateLockedAccount(
 
 	builder.SetQuotaDimension(dbaccount.QuotaDimension(account.QuotaDimensionOrDefault()))
 	builder.SetNillableParentAccountID(account.ParentAccountID)
+	builder.SetNillableMerchantID(account.MerchantID)
 
 	return builder.Save(ctx)
 }
@@ -3712,6 +3714,7 @@ func accountEntityToService(m *dbent.Account) *service.Account {
 		SessionWindowStatus:     derefString(m.SessionWindowStatus),
 		ParentAccountID:         m.ParentAccountID,
 		QuotaDimension:          string(m.QuotaDimension),
+		MerchantID:              m.MerchantID,
 	}
 }
 
