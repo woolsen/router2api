@@ -830,6 +830,9 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 	// 若确认有意免费，删除本注释即可（零值行为由
 	// TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage 锁定）。
 	//
+	// 商户快照：Live 记录只有 group_id、没有分组对象，且本行 actual_cost 恒为 0，
+	// 结算按 actual_cost > 0 过滤，因此这里不写 merchant_id，也不会造成少付。
+	//
 	// 这是该会话唯一一次落库机会（MarkLiveCallClosed 已标记 first），失败即永久
 	// 丢失，因此走带日志与同步兜底的 writeUsageLogBestEffort（issue #3656）。
 	writeUsageLogBestEffort(context.Background(), s.usageLogRepo, &UsageLog{

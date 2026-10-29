@@ -158,6 +158,7 @@ func TestCodexModelsAppliesLocalFiltersBeforeClientETag(t *testing.T) {
 		nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil,
 	)
 	handler := &OpenAIGatewayHandler{gatewayService: gatewayService}
 	group := &service.Group{
@@ -227,6 +228,7 @@ func TestCodexModelsAPIKeyCacheDoesNotLeakGroupFilters(t *testing.T) {
 		nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil,
 	)
 	handler := &OpenAIGatewayHandler{gatewayService: gatewayService}
 	groupA := &service.Group{
@@ -333,6 +335,7 @@ func TestCodexModelsSupplementsConfiguredModelsWithUnmappedAccountDefaults(t *te
 		nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil,
 	)
 	handler := &OpenAIGatewayHandler{gatewayService: gatewayService}
 
@@ -382,6 +385,7 @@ func TestCodexModelsUnmappedParentAndSparkShadowHonorCustomListAndETag(t *testin
 		nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil,
 	)
 	handler := &OpenAIGatewayHandler{gatewayService: gatewayService}
 	group := &service.Group{ID: 45, Platform: service.PlatformOpenAI}
@@ -599,6 +603,7 @@ func newCodexModelsFailoverTestHandlerWithAccountCount(firstStatus, accountCount
 		nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil,
 	)
 	return &OpenAIGatewayHandler{gatewayService: gatewayService, maxAccountSwitches: maxSwitches}, upstream, groupID
 }
@@ -762,6 +767,7 @@ func newPinnedCodexTestHandler(accounts []service.Account, upstream *codexModels
 		nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil,
 	)
 	return &OpenAIGatewayHandler{gatewayService: gatewayService, maxAccountSwitches: maxSwitches}
 }

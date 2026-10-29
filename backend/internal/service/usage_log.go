@@ -147,6 +147,12 @@ type UsageLog struct {
 	GroupID        *int64
 	SubscriptionID *int64
 
+	// MerchantID 是写入时快照的商户归属；nil 表示平台自营。
+	MerchantID *int64
+	// CommissionRate 是写入时快照的商户抽成率（0.08 = 8%）。
+	// 结算只读这一列，禁止回查商户当前配置。
+	CommissionRate float64
+
 	InputTokens         int
 	OutputTokens        int
 	CacheCreationTokens int

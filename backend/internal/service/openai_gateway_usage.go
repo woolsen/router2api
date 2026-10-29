@@ -483,6 +483,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.SubscriptionID = &subscription.ID
 	}
 
+	// 商户归属与抽成率在写入时固化，结算只读 usage_logs 快照。
+	applyMerchantSnapshot(ctx, s.merchantRepo, usageLog, apiKey.Group, "service.openai_gateway")
+
 	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
 	if apiKey.GroupID != nil {
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,

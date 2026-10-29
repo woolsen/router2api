@@ -143,3 +143,38 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 
 	require.Contains(t, usageLogSelectColumns, "upstream_request_id")
 }
+
+// TestPrepareUsageLogInsert_MerchantSnapshotArgWiring 把 merchant_id / commission_rate
+// 钉在 group_id 之后，确保三条生成式 INSERT、两条手写 INSERT 与 SELECT 扫描顺序一致；
+// 自营分组（无商户）必须落 NULL / 0。
+func TestPrepareUsageLogInsert_MerchantSnapshotArgWiring(t *testing.T) {
+	merchantID := int64(7)
+	prepared := prepareUsageLogInsert(&service.UsageLog{
+		UserID:         1,
+		APIKeyID:       2,
+		RequestID:      "client:merchant",
+		Model:          "gpt-5",
+		MerchantID:     &merchantID,
+		CommissionRate: 0.08,
+		CreatedAt:      time.Now().UTC(),
+	})
+	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
+	require.Equal(t, "bigint", usageLogInsertArgTypes[10], "merchant_id must follow group_id")
+	require.Equal(t, "numeric", usageLogInsertArgTypes[11], "commission_rate must follow merchant_id")
+	require.Equal(t, sql.NullInt64{Int64: merchantID, Valid: true}, prepared.args[10])
+	require.InDelta(t, 0.08, prepared.args[11], 1e-12)
+
+	selfOperated := prepareUsageLogInsert(&service.UsageLog{
+		UserID:    1,
+		APIKeyID:  2,
+		RequestID: "client:self-operated",
+		Model:     "gpt-5",
+		CreatedAt: time.Now().UTC(),
+	})
+	selfMerchant := selfOperated.args[10].(sql.NullInt64)
+	require.False(t, selfMerchant.Valid, "self-operated usage must persist merchant_id as NULL")
+	require.Zero(t, selfOperated.args[11], "self-operated usage must persist commission_rate as 0")
+
+	require.Contains(t, usageLogSelectColumns, "merchant_id")
+	require.Contains(t, usageLogSelectColumns, "commission_rate")
+}

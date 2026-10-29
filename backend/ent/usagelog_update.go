@@ -289,6 +289,54 @@ func (_u *UsageLogUpdate) ClearGroupID() *UsageLogUpdate {
 	return _u
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (_u *UsageLogUpdate) SetMerchantID(v int64) *UsageLogUpdate {
+	_u.mutation.ResetMerchantID()
+	_u.mutation.SetMerchantID(v)
+	return _u
+}
+
+// SetNillableMerchantID sets the "merchant_id" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableMerchantID(v *int64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetMerchantID(*v)
+	}
+	return _u
+}
+
+// AddMerchantID adds value to the "merchant_id" field.
+func (_u *UsageLogUpdate) AddMerchantID(v int64) *UsageLogUpdate {
+	_u.mutation.AddMerchantID(v)
+	return _u
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (_u *UsageLogUpdate) ClearMerchantID() *UsageLogUpdate {
+	_u.mutation.ClearMerchantID()
+	return _u
+}
+
+// SetCommissionRate sets the "commission_rate" field.
+func (_u *UsageLogUpdate) SetCommissionRate(v float64) *UsageLogUpdate {
+	_u.mutation.ResetCommissionRate()
+	_u.mutation.SetCommissionRate(v)
+	return _u
+}
+
+// SetNillableCommissionRate sets the "commission_rate" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableCommissionRate(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetCommissionRate(*v)
+	}
+	return _u
+}
+
+// AddCommissionRate adds value to the "commission_rate" field.
+func (_u *UsageLogUpdate) AddCommissionRate(v float64) *UsageLogUpdate {
+	_u.mutation.AddCommissionRate(v)
+	return _u
+}
+
 // SetSubscriptionID sets the "subscription_id" field.
 func (_u *UsageLogUpdate) SetSubscriptionID(v int64) *UsageLogUpdate {
 	_u.mutation.SetSubscriptionID(v)
@@ -1192,6 +1240,21 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.BillingModeCleared() {
 		_spec.ClearField(usagelog.FieldBillingMode, field.TypeString)
 	}
+	if value, ok := _u.mutation.MerchantID(); ok {
+		_spec.SetField(usagelog.FieldMerchantID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMerchantID(); ok {
+		_spec.AddField(usagelog.FieldMerchantID, field.TypeInt64, value)
+	}
+	if _u.mutation.MerchantIDCleared() {
+		_spec.ClearField(usagelog.FieldMerchantID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.CommissionRate(); ok {
+		_spec.SetField(usagelog.FieldCommissionRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedCommissionRate(); ok {
+		_spec.AddField(usagelog.FieldCommissionRate, field.TypeFloat64, value)
+	}
 	if value, ok := _u.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)
 	}
@@ -1800,6 +1863,54 @@ func (_u *UsageLogUpdateOne) SetNillableGroupID(v *int64) *UsageLogUpdateOne {
 // ClearGroupID clears the value of the "group_id" field.
 func (_u *UsageLogUpdateOne) ClearGroupID() *UsageLogUpdateOne {
 	_u.mutation.ClearGroupID()
+	return _u
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (_u *UsageLogUpdateOne) SetMerchantID(v int64) *UsageLogUpdateOne {
+	_u.mutation.ResetMerchantID()
+	_u.mutation.SetMerchantID(v)
+	return _u
+}
+
+// SetNillableMerchantID sets the "merchant_id" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableMerchantID(v *int64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetMerchantID(*v)
+	}
+	return _u
+}
+
+// AddMerchantID adds value to the "merchant_id" field.
+func (_u *UsageLogUpdateOne) AddMerchantID(v int64) *UsageLogUpdateOne {
+	_u.mutation.AddMerchantID(v)
+	return _u
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (_u *UsageLogUpdateOne) ClearMerchantID() *UsageLogUpdateOne {
+	_u.mutation.ClearMerchantID()
+	return _u
+}
+
+// SetCommissionRate sets the "commission_rate" field.
+func (_u *UsageLogUpdateOne) SetCommissionRate(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetCommissionRate()
+	_u.mutation.SetCommissionRate(v)
+	return _u
+}
+
+// SetNillableCommissionRate sets the "commission_rate" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableCommissionRate(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetCommissionRate(*v)
+	}
+	return _u
+}
+
+// AddCommissionRate adds value to the "commission_rate" field.
+func (_u *UsageLogUpdateOne) AddCommissionRate(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddCommissionRate(v)
 	return _u
 }
 
@@ -2735,6 +2846,21 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.BillingModeCleared() {
 		_spec.ClearField(usagelog.FieldBillingMode, field.TypeString)
+	}
+	if value, ok := _u.mutation.MerchantID(); ok {
+		_spec.SetField(usagelog.FieldMerchantID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMerchantID(); ok {
+		_spec.AddField(usagelog.FieldMerchantID, field.TypeInt64, value)
+	}
+	if _u.mutation.MerchantIDCleared() {
+		_spec.ClearField(usagelog.FieldMerchantID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.CommissionRate(); ok {
+		_spec.SetField(usagelog.FieldCommissionRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedCommissionRate(); ok {
+		_spec.AddField(usagelog.FieldCommissionRate, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)

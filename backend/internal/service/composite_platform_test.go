@@ -171,6 +171,7 @@ func TestNewGatewayServiceWiresCompositeModelOwnershipResolver(t *testing.T) {
 		resolver,
 		nil,
 		nil,
+		nil,
 	)
 	require.Same(t, resolver, svc.compositeResolver)
 

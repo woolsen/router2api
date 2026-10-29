@@ -93,6 +93,8 @@ func (s *UsageService) Create(ctx context.Context, req CreateUsageLogRequest) (*
 	}
 
 	// 创建使用日志
+	// 该入口只接受调用方显式给出的字段，没有分组/商户上下文；网关计费路径
+	// 已在 buildRecordUsageLog / OpenAI 用量构建处快照 merchant_id 与抽成率。
 	usageLog := &UsageLog{
 		UserID:                req.UserID,
 		APIKeyID:              req.APIKeyID,

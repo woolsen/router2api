@@ -253,6 +253,8 @@ func (s *BatchImageSettlementService) recordUsageLog(ctx context.Context, job *B
 	if s == nil || s.UsageLogRepo == nil || job == nil || job.APIKeyID == nil || job.AccountID == nil {
 		return
 	}
+	// 批量图片任务只跑 gemini/vertex，而商户分组限定 openai/anthropic（见
+	// MerchantOnboardingService），并且 M1 不改图片计费；这里没有商户上下文可快照。
 	billingMode := string(BillingModeImage)
 	accountRateMultiplier := job.AccountRateMultiplier
 	inboundEndpoint := "/v1/images/batches"

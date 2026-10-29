@@ -195,6 +195,7 @@ func newTestGatewayHandlerWithSchedulerCache(t *testing.T, group *service.Group,
 		nil, // compositeResolver
 		nil, // balanceNotifyService
 		nil, // userPlatformQuotaRepo
+		nil,
 	)
 
 	// RunModeSimple：跳过计费检查，避免引入 repo/cache 依赖。

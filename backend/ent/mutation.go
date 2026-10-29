@@ -45679,6 +45679,10 @@ type UsageLogMutation struct {
 	model_mapping_chain          *string
 	billing_tier                 *string
 	billing_mode                 *string
+	merchant_id                  *int64
+	addmerchant_id               *int64
+	commission_rate              *float64
+	addcommission_rate           *float64
 	input_tokens                 *int
 	addinput_tokens              *int
 	output_tokens                *int
@@ -46485,6 +46489,132 @@ func (m *UsageLogMutation) GroupIDCleared() bool {
 func (m *UsageLogMutation) ResetGroupID() {
 	m.group = nil
 	delete(m.clearedFields, usagelog.FieldGroupID)
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (m *UsageLogMutation) SetMerchantID(i int64) {
+	m.merchant_id = &i
+	m.addmerchant_id = nil
+}
+
+// MerchantID returns the value of the "merchant_id" field in the mutation.
+func (m *UsageLogMutation) MerchantID() (r int64, exists bool) {
+	v := m.merchant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMerchantID returns the old "merchant_id" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldMerchantID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMerchantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMerchantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMerchantID: %w", err)
+	}
+	return oldValue.MerchantID, nil
+}
+
+// AddMerchantID adds i to the "merchant_id" field.
+func (m *UsageLogMutation) AddMerchantID(i int64) {
+	if m.addmerchant_id != nil {
+		*m.addmerchant_id += i
+	} else {
+		m.addmerchant_id = &i
+	}
+}
+
+// AddedMerchantID returns the value that was added to the "merchant_id" field in this mutation.
+func (m *UsageLogMutation) AddedMerchantID() (r int64, exists bool) {
+	v := m.addmerchant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (m *UsageLogMutation) ClearMerchantID() {
+	m.merchant_id = nil
+	m.addmerchant_id = nil
+	m.clearedFields[usagelog.FieldMerchantID] = struct{}{}
+}
+
+// MerchantIDCleared returns if the "merchant_id" field was cleared in this mutation.
+func (m *UsageLogMutation) MerchantIDCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldMerchantID]
+	return ok
+}
+
+// ResetMerchantID resets all changes to the "merchant_id" field.
+func (m *UsageLogMutation) ResetMerchantID() {
+	m.merchant_id = nil
+	m.addmerchant_id = nil
+	delete(m.clearedFields, usagelog.FieldMerchantID)
+}
+
+// SetCommissionRate sets the "commission_rate" field.
+func (m *UsageLogMutation) SetCommissionRate(f float64) {
+	m.commission_rate = &f
+	m.addcommission_rate = nil
+}
+
+// CommissionRate returns the value of the "commission_rate" field in the mutation.
+func (m *UsageLogMutation) CommissionRate() (r float64, exists bool) {
+	v := m.commission_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCommissionRate returns the old "commission_rate" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldCommissionRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCommissionRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCommissionRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCommissionRate: %w", err)
+	}
+	return oldValue.CommissionRate, nil
+}
+
+// AddCommissionRate adds f to the "commission_rate" field.
+func (m *UsageLogMutation) AddCommissionRate(f float64) {
+	if m.addcommission_rate != nil {
+		*m.addcommission_rate += f
+	} else {
+		m.addcommission_rate = &f
+	}
+}
+
+// AddedCommissionRate returns the value that was added to the "commission_rate" field in this mutation.
+func (m *UsageLogMutation) AddedCommissionRate() (r float64, exists bool) {
+	v := m.addcommission_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCommissionRate resets all changes to the "commission_rate" field.
+func (m *UsageLogMutation) ResetCommissionRate() {
+	m.commission_rate = nil
+	m.addcommission_rate = nil
 }
 
 // SetSubscriptionID sets the "subscription_id" field.
@@ -48417,7 +48547,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 47)
+	fields := make([]string, 0, 49)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -48459,6 +48589,12 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.group != nil {
 		fields = append(fields, usagelog.FieldGroupID)
+	}
+	if m.merchant_id != nil {
+		fields = append(fields, usagelog.FieldMerchantID)
+	}
+	if m.commission_rate != nil {
+		fields = append(fields, usagelog.FieldCommissionRate)
 	}
 	if m.subscription != nil {
 		fields = append(fields, usagelog.FieldSubscriptionID)
@@ -48595,6 +48731,10 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.BillingMode()
 	case usagelog.FieldGroupID:
 		return m.GroupID()
+	case usagelog.FieldMerchantID:
+		return m.MerchantID()
+	case usagelog.FieldCommissionRate:
+		return m.CommissionRate()
 	case usagelog.FieldSubscriptionID:
 		return m.SubscriptionID()
 	case usagelog.FieldInputTokens:
@@ -48698,6 +48838,10 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldBillingMode(ctx)
 	case usagelog.FieldGroupID:
 		return m.OldGroupID(ctx)
+	case usagelog.FieldMerchantID:
+		return m.OldMerchantID(ctx)
+	case usagelog.FieldCommissionRate:
+		return m.OldCommissionRate(ctx)
 	case usagelog.FieldSubscriptionID:
 		return m.OldSubscriptionID(ctx)
 	case usagelog.FieldInputTokens:
@@ -48870,6 +49014,20 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetGroupID(v)
+		return nil
+	case usagelog.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMerchantID(v)
+		return nil
+	case usagelog.FieldCommissionRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCommissionRate(v)
 		return nil
 	case usagelog.FieldSubscriptionID:
 		v, ok := value.(int64)
@@ -49113,6 +49271,12 @@ func (m *UsageLogMutation) AddedFields() []string {
 	if m.addchannel_id != nil {
 		fields = append(fields, usagelog.FieldChannelID)
 	}
+	if m.addmerchant_id != nil {
+		fields = append(fields, usagelog.FieldMerchantID)
+	}
+	if m.addcommission_rate != nil {
+		fields = append(fields, usagelog.FieldCommissionRate)
+	}
 	if m.addinput_tokens != nil {
 		fields = append(fields, usagelog.FieldInputTokens)
 	}
@@ -49183,6 +49347,10 @@ func (m *UsageLogMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case usagelog.FieldChannelID:
 		return m.AddedChannelID()
+	case usagelog.FieldMerchantID:
+		return m.AddedMerchantID()
+	case usagelog.FieldCommissionRate:
+		return m.AddedCommissionRate()
 	case usagelog.FieldInputTokens:
 		return m.AddedInputTokens()
 	case usagelog.FieldOutputTokens:
@@ -49238,6 +49406,20 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddChannelID(v)
+		return nil
+	case usagelog.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMerchantID(v)
+		return nil
+	case usagelog.FieldCommissionRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCommissionRate(v)
 		return nil
 	case usagelog.FieldInputTokens:
 		v, ok := value.(int)
@@ -49414,6 +49596,9 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldGroupID) {
 		fields = append(fields, usagelog.FieldGroupID)
 	}
+	if m.FieldCleared(usagelog.FieldMerchantID) {
+		fields = append(fields, usagelog.FieldMerchantID)
+	}
 	if m.FieldCleared(usagelog.FieldSubscriptionID) {
 		fields = append(fields, usagelog.FieldSubscriptionID)
 	}
@@ -49493,6 +49678,9 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldGroupID:
 		m.ClearGroupID()
+		return nil
+	case usagelog.FieldMerchantID:
+		m.ClearMerchantID()
 		return nil
 	case usagelog.FieldSubscriptionID:
 		m.ClearSubscriptionID()
@@ -49582,6 +49770,12 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldGroupID:
 		m.ResetGroupID()
+		return nil
+	case usagelog.FieldMerchantID:
+		m.ResetMerchantID()
+		return nil
+	case usagelog.FieldCommissionRate:
+		m.ResetCommissionRate()
 		return nil
 	case usagelog.FieldSubscriptionID:
 		m.ResetSubscriptionID()

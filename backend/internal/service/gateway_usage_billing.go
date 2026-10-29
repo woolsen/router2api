@@ -1383,6 +1383,9 @@ func (s *GatewayService) buildRecordUsageLog(
 		usageLog.LongContextBillingApplied = cost.LongContextBillingApplied
 	}
 
+	// 商户归属与抽成率在写入时固化，结算只读 usage_logs 快照。
+	applyMerchantSnapshot(ctx, s.merchantRepo, usageLog, apiKey.Group, "service.gateway")
+
 	return usageLog
 }
 

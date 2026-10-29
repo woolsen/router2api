@@ -71,6 +71,12 @@ func (UsageLog) Fields() []ent.Field {
 		field.Int64("group_id").
 			Optional().
 			Nillable(),
+		// merchant_id / commission_rate 是写入时快照：结算只读这两列，
+		// 不回查商户当前配置，避免改抽成后回溯历史账期。
+		field.Int64("merchant_id").Optional().Nillable().Comment("商户 ID 快照；nil 表示平台自营"),
+		field.Float("commission_rate").Default(0).
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
+			Comment("结算时的抽成率快照"),
 		field.Int64("subscription_id").
 			Optional().
 			Nillable(),

@@ -125,6 +125,16 @@ func GroupID(v int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldGroupID, v))
 }
 
+// MerchantID applies equality check predicate on the "merchant_id" field. It's identical to MerchantIDEQ.
+func MerchantID(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldMerchantID, v))
+}
+
+// CommissionRate applies equality check predicate on the "commission_rate" field. It's identical to CommissionRateEQ.
+func CommissionRate(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldCommissionRate, v))
+}
+
 // SubscriptionID applies equality check predicate on the "subscription_id" field. It's identical to SubscriptionIDEQ.
 func SubscriptionID(v int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldSubscriptionID, v))
@@ -1023,6 +1033,96 @@ func GroupIDIsNil() predicate.UsageLog {
 // GroupIDNotNil applies the NotNil predicate on the "group_id" field.
 func GroupIDNotNil() predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldNotNull(FieldGroupID))
+}
+
+// MerchantIDEQ applies the EQ predicate on the "merchant_id" field.
+func MerchantIDEQ(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldMerchantID, v))
+}
+
+// MerchantIDNEQ applies the NEQ predicate on the "merchant_id" field.
+func MerchantIDNEQ(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldMerchantID, v))
+}
+
+// MerchantIDIn applies the In predicate on the "merchant_id" field.
+func MerchantIDIn(vs ...int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldMerchantID, vs...))
+}
+
+// MerchantIDNotIn applies the NotIn predicate on the "merchant_id" field.
+func MerchantIDNotIn(vs ...int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldMerchantID, vs...))
+}
+
+// MerchantIDGT applies the GT predicate on the "merchant_id" field.
+func MerchantIDGT(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldMerchantID, v))
+}
+
+// MerchantIDGTE applies the GTE predicate on the "merchant_id" field.
+func MerchantIDGTE(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldMerchantID, v))
+}
+
+// MerchantIDLT applies the LT predicate on the "merchant_id" field.
+func MerchantIDLT(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldMerchantID, v))
+}
+
+// MerchantIDLTE applies the LTE predicate on the "merchant_id" field.
+func MerchantIDLTE(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldMerchantID, v))
+}
+
+// MerchantIDIsNil applies the IsNil predicate on the "merchant_id" field.
+func MerchantIDIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldMerchantID))
+}
+
+// MerchantIDNotNil applies the NotNil predicate on the "merchant_id" field.
+func MerchantIDNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldMerchantID))
+}
+
+// CommissionRateEQ applies the EQ predicate on the "commission_rate" field.
+func CommissionRateEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldCommissionRate, v))
+}
+
+// CommissionRateNEQ applies the NEQ predicate on the "commission_rate" field.
+func CommissionRateNEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldCommissionRate, v))
+}
+
+// CommissionRateIn applies the In predicate on the "commission_rate" field.
+func CommissionRateIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldCommissionRate, vs...))
+}
+
+// CommissionRateNotIn applies the NotIn predicate on the "commission_rate" field.
+func CommissionRateNotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldCommissionRate, vs...))
+}
+
+// CommissionRateGT applies the GT predicate on the "commission_rate" field.
+func CommissionRateGT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldCommissionRate, v))
+}
+
+// CommissionRateGTE applies the GTE predicate on the "commission_rate" field.
+func CommissionRateGTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldCommissionRate, v))
+}
+
+// CommissionRateLT applies the LT predicate on the "commission_rate" field.
+func CommissionRateLT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldCommissionRate, v))
+}
+
+// CommissionRateLTE applies the LTE predicate on the "commission_rate" field.
+func CommissionRateLTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldCommissionRate, v))
 }
 
 // SubscriptionIDEQ applies the EQ predicate on the "subscription_id" field.

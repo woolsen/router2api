@@ -183,6 +183,34 @@ func (_c *UsageLogCreate) SetNillableGroupID(v *int64) *UsageLogCreate {
 	return _c
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (_c *UsageLogCreate) SetMerchantID(v int64) *UsageLogCreate {
+	_c.mutation.SetMerchantID(v)
+	return _c
+}
+
+// SetNillableMerchantID sets the "merchant_id" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableMerchantID(v *int64) *UsageLogCreate {
+	if v != nil {
+		_c.SetMerchantID(*v)
+	}
+	return _c
+}
+
+// SetCommissionRate sets the "commission_rate" field.
+func (_c *UsageLogCreate) SetCommissionRate(v float64) *UsageLogCreate {
+	_c.mutation.SetCommissionRate(v)
+	return _c
+}
+
+// SetNillableCommissionRate sets the "commission_rate" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableCommissionRate(v *float64) *UsageLogCreate {
+	if v != nil {
+		_c.SetCommissionRate(*v)
+	}
+	return _c
+}
+
 // SetSubscriptionID sets the "subscription_id" field.
 func (_c *UsageLogCreate) SetSubscriptionID(v int64) *UsageLogCreate {
 	_c.mutation.SetSubscriptionID(v)
@@ -697,6 +725,10 @@ func (_c *UsageLogCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *UsageLogCreate) defaults() {
+	if _, ok := _c.mutation.CommissionRate(); !ok {
+		v := usagelog.DefaultCommissionRate
+		_c.mutation.SetCommissionRate(v)
+	}
 	if _, ok := _c.mutation.InputTokens(); !ok {
 		v := usagelog.DefaultInputTokens
 		_c.mutation.SetInputTokens(v)
@@ -835,6 +867,9 @@ func (_c *UsageLogCreate) check() error {
 		if err := usagelog.BillingModeValidator(v); err != nil {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.CommissionRate(); !ok {
+		return &ValidationError{Name: "commission_rate", err: errors.New(`ent: missing required field "UsageLog.commission_rate"`)}
 	}
 	if _, ok := _c.mutation.InputTokens(); !ok {
 		return &ValidationError{Name: "input_tokens", err: errors.New(`ent: missing required field "UsageLog.input_tokens"`)}
@@ -1006,6 +1041,14 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.BillingMode(); ok {
 		_spec.SetField(usagelog.FieldBillingMode, field.TypeString, value)
 		_node.BillingMode = &value
+	}
+	if value, ok := _c.mutation.MerchantID(); ok {
+		_spec.SetField(usagelog.FieldMerchantID, field.TypeInt64, value)
+		_node.MerchantID = &value
+	}
+	if value, ok := _c.mutation.CommissionRate(); ok {
+		_spec.SetField(usagelog.FieldCommissionRate, field.TypeFloat64, value)
+		_node.CommissionRate = value
 	}
 	if value, ok := _c.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)
@@ -1497,6 +1540,48 @@ func (u *UsageLogUpsert) UpdateGroupID() *UsageLogUpsert {
 // ClearGroupID clears the value of the "group_id" field.
 func (u *UsageLogUpsert) ClearGroupID() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldGroupID)
+	return u
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *UsageLogUpsert) SetMerchantID(v int64) *UsageLogUpsert {
+	u.Set(usagelog.FieldMerchantID, v)
+	return u
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateMerchantID() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldMerchantID)
+	return u
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *UsageLogUpsert) AddMerchantID(v int64) *UsageLogUpsert {
+	u.Add(usagelog.FieldMerchantID, v)
+	return u
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *UsageLogUpsert) ClearMerchantID() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldMerchantID)
+	return u
+}
+
+// SetCommissionRate sets the "commission_rate" field.
+func (u *UsageLogUpsert) SetCommissionRate(v float64) *UsageLogUpsert {
+	u.Set(usagelog.FieldCommissionRate, v)
+	return u
+}
+
+// UpdateCommissionRate sets the "commission_rate" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateCommissionRate() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldCommissionRate)
+	return u
+}
+
+// AddCommissionRate adds v to the "commission_rate" field.
+func (u *UsageLogUpsert) AddCommissionRate(v float64) *UsageLogUpsert {
+	u.Add(usagelog.FieldCommissionRate, v)
 	return u
 }
 
@@ -2390,6 +2475,55 @@ func (u *UsageLogUpsertOne) UpdateGroupID() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearGroupID() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearGroupID()
+	})
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *UsageLogUpsertOne) SetMerchantID(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetMerchantID(v)
+	})
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *UsageLogUpsertOne) AddMerchantID(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddMerchantID(v)
+	})
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateMerchantID() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateMerchantID()
+	})
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *UsageLogUpsertOne) ClearMerchantID() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearMerchantID()
+	})
+}
+
+// SetCommissionRate sets the "commission_rate" field.
+func (u *UsageLogUpsertOne) SetCommissionRate(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetCommissionRate(v)
+	})
+}
+
+// AddCommissionRate adds v to the "commission_rate" field.
+func (u *UsageLogUpsertOne) AddCommissionRate(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddCommissionRate(v)
+	})
+}
+
+// UpdateCommissionRate sets the "commission_rate" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateCommissionRate() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateCommissionRate()
 	})
 }
 
@@ -3546,6 +3680,55 @@ func (u *UsageLogUpsertBulk) UpdateGroupID() *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) ClearGroupID() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearGroupID()
+	})
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *UsageLogUpsertBulk) SetMerchantID(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetMerchantID(v)
+	})
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *UsageLogUpsertBulk) AddMerchantID(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddMerchantID(v)
+	})
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateMerchantID() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateMerchantID()
+	})
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *UsageLogUpsertBulk) ClearMerchantID() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearMerchantID()
+	})
+}
+
+// SetCommissionRate sets the "commission_rate" field.
+func (u *UsageLogUpsertBulk) SetCommissionRate(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetCommissionRate(v)
+	})
+}
+
+// AddCommissionRate adds v to the "commission_rate" field.
+func (u *UsageLogUpsertBulk) AddCommissionRate(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddCommissionRate(v)
+	})
+}
+
+// UpdateCommissionRate sets the "commission_rate" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateCommissionRate() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateCommissionRate()
 	})
 }
 

@@ -42,6 +42,10 @@ const (
 	FieldBillingMode = "billing_mode"
 	// FieldGroupID holds the string denoting the group_id field in the database.
 	FieldGroupID = "group_id"
+	// FieldMerchantID holds the string denoting the merchant_id field in the database.
+	FieldMerchantID = "merchant_id"
+	// FieldCommissionRate holds the string denoting the commission_rate field in the database.
+	FieldCommissionRate = "commission_rate"
 	// FieldSubscriptionID holds the string denoting the subscription_id field in the database.
 	FieldSubscriptionID = "subscription_id"
 	// FieldInputTokens holds the string denoting the input_tokens field in the database.
@@ -174,6 +178,8 @@ var Columns = []string{
 	FieldBillingTier,
 	FieldBillingMode,
 	FieldGroupID,
+	FieldMerchantID,
+	FieldCommissionRate,
 	FieldSubscriptionID,
 	FieldInputTokens,
 	FieldOutputTokens,
@@ -236,6 +242,8 @@ var (
 	BillingTierValidator func(string) error
 	// BillingModeValidator is a validator for the "billing_mode" field. It is called by the builders before save.
 	BillingModeValidator func(string) error
+	// DefaultCommissionRate holds the default value on creation for the "commission_rate" field.
+	DefaultCommissionRate float64
 	// DefaultInputTokens holds the default value on creation for the "input_tokens" field.
 	DefaultInputTokens int
 	// DefaultOutputTokens holds the default value on creation for the "output_tokens" field.
@@ -368,6 +376,16 @@ func ByBillingMode(opts ...sql.OrderTermOption) OrderOption {
 // ByGroupID orders the results by the group_id field.
 func ByGroupID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGroupID, opts...).ToFunc()
+}
+
+// ByMerchantID orders the results by the merchant_id field.
+func ByMerchantID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMerchantID, opts...).ToFunc()
+}
+
+// ByCommissionRate orders the results by the commission_rate field.
+func ByCommissionRate(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCommissionRate, opts...).ToFunc()
 }
 
 // BySubscriptionID orders the results by the subscription_id field.
