@@ -46579,7 +46579,7 @@ func (m *UsageLogMutation) CommissionRate() (r float64, exists bool) {
 // OldCommissionRate returns the old "commission_rate" field's value of the UsageLog entity.
 // If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UsageLogMutation) OldCommissionRate(ctx context.Context) (v float64, err error) {
+func (m *UsageLogMutation) OldCommissionRate(ctx context.Context) (v *float64, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldCommissionRate is only allowed on UpdateOne operations")
 	}
@@ -46611,10 +46611,24 @@ func (m *UsageLogMutation) AddedCommissionRate() (r float64, exists bool) {
 	return *v, true
 }
 
+// ClearCommissionRate clears the value of the "commission_rate" field.
+func (m *UsageLogMutation) ClearCommissionRate() {
+	m.commission_rate = nil
+	m.addcommission_rate = nil
+	m.clearedFields[usagelog.FieldCommissionRate] = struct{}{}
+}
+
+// CommissionRateCleared returns if the "commission_rate" field was cleared in this mutation.
+func (m *UsageLogMutation) CommissionRateCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldCommissionRate]
+	return ok
+}
+
 // ResetCommissionRate resets all changes to the "commission_rate" field.
 func (m *UsageLogMutation) ResetCommissionRate() {
 	m.commission_rate = nil
 	m.addcommission_rate = nil
+	delete(m.clearedFields, usagelog.FieldCommissionRate)
 }
 
 // SetSubscriptionID sets the "subscription_id" field.
@@ -49599,6 +49613,9 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldMerchantID) {
 		fields = append(fields, usagelog.FieldMerchantID)
 	}
+	if m.FieldCleared(usagelog.FieldCommissionRate) {
+		fields = append(fields, usagelog.FieldCommissionRate)
+	}
 	if m.FieldCleared(usagelog.FieldSubscriptionID) {
 		fields = append(fields, usagelog.FieldSubscriptionID)
 	}
@@ -49681,6 +49698,9 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldMerchantID:
 		m.ClearMerchantID()
+		return nil
+	case usagelog.FieldCommissionRate:
+		m.ClearCommissionRate()
 		return nil
 	case usagelog.FieldSubscriptionID:
 		m.ClearSubscriptionID()

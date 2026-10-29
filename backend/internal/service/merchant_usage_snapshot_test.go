@@ -120,8 +120,11 @@ func TestUsageLogSnapshotsMerchantAndCommission(t *testing.T) {
 	if log.MerchantID == nil || *log.MerchantID != 1 {
 		t.Fatal("merchant_id not snapshotted")
 	}
-	if math.Abs(log.CommissionRate-0.08) > 1e-9 {
-		t.Fatalf("want 0.08, got %v", log.CommissionRate)
+	if log.CommissionRate == nil {
+		t.Fatal("commission_rate not snapshotted")
+	}
+	if math.Abs(*log.CommissionRate-0.08) > 1e-9 {
+		t.Fatalf("want 0.08, got %v", *log.CommissionRate)
 	}
 }
 
@@ -131,7 +134,7 @@ func TestUsageLogMerchantNilForSelfOperatedGroup(t *testing.T) {
 	if log.MerchantID != nil {
 		t.Fatal("self-operated usage must not carry merchant_id")
 	}
-	if log.CommissionRate != 0 {
+	if log.CommissionRate != nil {
 		t.Fatal("self-operated usage must not carry commission")
 	}
 	if merchantRepo.calls != 0 {
@@ -139,15 +142,16 @@ func TestUsageLogMerchantNilForSelfOperatedGroup(t *testing.T) {
 	}
 }
 
-func TestUsageLogMerchantSnapshotSkipsRowWhenMerchantMissing(t *testing.T) {
-	// 商户查不到时整行不写 merchant_id：宁可留待补结，也不能按 0 抽成结算、白送全额。
+func TestUsageLogMerchantKeptWhenCommissionUnknown(t *testing.T) {
+	// 商户查不到时仍然保留 merchant_id（这一行必须记在该商户名下），
+	// commission_rate 留 NULL 交给补结，绝不能写成 0 抽成（平台白送全额）。
 	missingMerchantID := int64(404)
 	log, _ := captureUsageLogForGroup(t, &Group{ID: 9, MerchantID: &missingMerchantID, RateMultiplier: 1})
-	if log.MerchantID != nil {
-		t.Fatal("unknown merchant must not be snapshotted")
+	if log.MerchantID == nil || *log.MerchantID != missingMerchantID {
+		t.Fatal("merchant_id must be snapshotted even when the merchant lookup fails")
 	}
-	if log.CommissionRate != 0 {
-		t.Fatal("unknown merchant must not carry a commission")
+	if log.CommissionRate != nil {
+		t.Fatalf("unknown commission must stay NULL, got %v", *log.CommissionRate)
 	}
 }
 
@@ -207,7 +211,10 @@ func TestUsageLogSnapshotsMerchantOnOpenAIPath(t *testing.T) {
 	if usageRepo.lastLog.MerchantID == nil || *usageRepo.lastLog.MerchantID != 1 {
 		t.Fatal("merchant_id not snapshotted on openai path")
 	}
-	if math.Abs(usageRepo.lastLog.CommissionRate-0.08) > 1e-9 {
-		t.Fatalf("want 0.08, got %v", usageRepo.lastLog.CommissionRate)
+	if usageRepo.lastLog.CommissionRate == nil {
+		t.Fatal("commission_rate not snapshotted on openai path")
+	}
+	if math.Abs(*usageRepo.lastLog.CommissionRate-0.08) > 1e-9 {
+		t.Fatalf("want 0.08, got %v", *usageRepo.lastLog.CommissionRate)
 	}
 }

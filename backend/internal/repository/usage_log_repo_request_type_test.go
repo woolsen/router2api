@@ -925,8 +925,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullBool{},
 			sql.NullInt64{},
-			sql.NullInt64{}, // merchant_id
-			0.0,             // commission_rate
+			sql.NullInt64{},   // merchant_id
+			sql.NullFloat64{}, // commission_rate
 			sql.NullInt64{},
 			0, 0, 0, 0, 0, 0,
 			0, 0.0, // image_output_tokens, image_output_cost
@@ -996,7 +996,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullBool{},    // upstream_model_mismatch
 			sql.NullInt64{},   // group_id
 			sql.NullInt64{},   // merchant_id
-			0.0,               // commission_rate
+			sql.NullFloat64{}, // commission_rate
 			sql.NullInt64{},   // subscription_id
 			1,                 // input_tokens
 			2,                 // output_tokens
@@ -1072,8 +1072,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullBool{},
 			sql.NullInt64{},
-			sql.NullInt64{}, // merchant_id
-			0.0,             // commission_rate
+			sql.NullInt64{},   // merchant_id
+			sql.NullFloat64{}, // commission_rate
 			sql.NullInt64{},
 			1, 2, 3, 4, 5, 6,
 			0, 0.0, // image_output_tokens, image_output_cost
@@ -1138,8 +1138,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullBool{},
 			sql.NullInt64{},
-			sql.NullInt64{}, // merchant_id
-			0.0,             // commission_rate
+			sql.NullInt64{},   // merchant_id
+			sql.NullFloat64{}, // commission_rate
 			sql.NullInt64{},
 			1, 2, 3, 4, 5, 6,
 			0, 0.0, // image_output_tokens, image_output_cost

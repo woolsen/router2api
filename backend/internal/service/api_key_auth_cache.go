@@ -64,6 +64,9 @@ type APIKeyAuthGroupSnapshot struct {
 	Status                          string                        `json:"status"`
 	SubscriptionType                string                        `json:"subscription_type"`
 	RateMultiplier                  float64                       `json:"rate_multiplier"`
+	// MerchantID 是分组归属的商户快照；用量写入时据此快照 merchant_id/commission_rate。
+	// 缺了它，认证路径上的每一条用量行都会失去商户归属。
+	MerchantID                      *int64                        `json:"merchant_id,omitempty"`
 	DailyLimitUSD                   *float64                      `json:"daily_limit_usd,omitempty"`
 	WeeklyLimitUSD                  *float64                      `json:"weekly_limit_usd,omitempty"`
 	MonthlyLimitUSD                 *float64                      `json:"monthly_limit_usd,omitempty"`

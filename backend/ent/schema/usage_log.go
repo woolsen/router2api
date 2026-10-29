@@ -74,9 +74,13 @@ func (UsageLog) Fields() []ent.Field {
 		// merchant_id / commission_rate 是写入时快照：结算只读这两列，
 		// 不回查商户当前配置，避免改抽成后回溯历史账期。
 		field.Int64("merchant_id").Optional().Nillable().Comment("商户 ID 快照；nil 表示平台自营"),
-		field.Float("commission_rate").Default(0).
+		// commission_rate 为 NULL 表示写入时费率未知（商户查询失败），
+		// 0 表示确实是 0；自营两者皆为 NULL。结算不得把 NULL 当 0 处理。
+		field.Float("commission_rate").
+			Optional().
+			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
-			Comment("结算时的抽成率快照"),
+			Comment("结算时的抽成率快照；NULL=写入时未知"),
 		field.Int64("subscription_id").
 			Optional().
 			Nillable(),

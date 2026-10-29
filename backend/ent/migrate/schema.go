@@ -1691,7 +1691,7 @@ var (
 		{Name: "billing_tier", Type: field.TypeString, Nullable: true, Size: 50},
 		{Name: "billing_mode", Type: field.TypeString, Nullable: true, Size: 20},
 		{Name: "merchant_id", Type: field.TypeInt64, Nullable: true},
-		{Name: "commission_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},
+		{Name: "commission_rate", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},
 		{Name: "input_tokens", Type: field.TypeInt, Default: 0},
 		{Name: "output_tokens", Type: field.TypeInt, Default: 0},
 		{Name: "cache_creation_tokens", Type: field.TypeInt, Default: 0},

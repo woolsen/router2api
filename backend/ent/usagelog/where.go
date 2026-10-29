@@ -1125,6 +1125,16 @@ func CommissionRateLTE(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldLTE(FieldCommissionRate, v))
 }
 
+// CommissionRateIsNil applies the IsNil predicate on the "commission_rate" field.
+func CommissionRateIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldCommissionRate))
+}
+
+// CommissionRateNotNil applies the NotNil predicate on the "commission_rate" field.
+func CommissionRateNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldCommissionRate))
+}
+
 // SubscriptionIDEQ applies the EQ predicate on the "subscription_id" field.
 func SubscriptionIDEQ(v int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldSubscriptionID, v))

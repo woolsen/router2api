@@ -452,7 +452,7 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		upstreamModelMismatch     sql.NullBool
 		groupID                   sql.NullInt64
 		merchantID                sql.NullInt64
-		commissionRate            float64
+		commissionRate            sql.NullFloat64
 		subscriptionID            sql.NullInt64
 		inputTokens               int
 		outputTokens              int
@@ -628,7 +628,7 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		value := merchantID.Int64
 		log.MerchantID = &value
 	}
-	log.CommissionRate = commissionRate
+	log.CommissionRate = nullFloat64Ptr(commissionRate)
 	if subscriptionID.Valid {
 		value := subscriptionID.Int64
 		log.SubscriptionID = &value
@@ -730,6 +730,13 @@ func nullInt(v *int) sql.NullInt64 {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: int64(*v), Valid: true}
+}
+
+func nullFloat64(v *float64) sql.NullFloat64 {
+	if v == nil {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: *v, Valid: true}
 }
 
 func nullFloat64Ptr(v sql.NullFloat64) *float64 {

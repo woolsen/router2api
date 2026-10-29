@@ -242,8 +242,6 @@ var (
 	BillingTierValidator func(string) error
 	// BillingModeValidator is a validator for the "billing_mode" field. It is called by the builders before save.
 	BillingModeValidator func(string) error
-	// DefaultCommissionRate holds the default value on creation for the "commission_rate" field.
-	DefaultCommissionRate float64
 	// DefaultInputTokens holds the default value on creation for the "input_tokens" field.
 	DefaultInputTokens int
 	// DefaultOutputTokens holds the default value on creation for the "output_tokens" field.

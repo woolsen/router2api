@@ -150,8 +150,9 @@ type UsageLog struct {
 	// MerchantID 是写入时快照的商户归属；nil 表示平台自营。
 	MerchantID *int64
 	// CommissionRate 是写入时快照的商户抽成率（0.08 = 8%）。
-	// 结算只读这一列，禁止回查商户当前配置。
-	CommissionRate float64
+	// nil 表示写入时费率未知（商户查询失败），0 表示确实是 0；自营两者皆为 nil。
+	// 结算只读这一列，禁止回查商户当前配置，也不得把 nil 当 0。
+	CommissionRate *float64
 
 	InputTokens         int
 	OutputTokens        int

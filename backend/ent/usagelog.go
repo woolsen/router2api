@@ -53,8 +53,8 @@ type UsageLog struct {
 	GroupID *int64 `json:"group_id,omitempty"`
 	// 商户 ID 快照；nil 表示平台自营
 	MerchantID *int64 `json:"merchant_id,omitempty"`
-	// 结算时的抽成率快照
-	CommissionRate float64 `json:"commission_rate,omitempty"`
+	// 结算时的抽成率快照；NULL=写入时未知
+	CommissionRate *float64 `json:"commission_rate,omitempty"`
 	// SubscriptionID holds the value of the "subscription_id" field.
 	SubscriptionID *int64 `json:"subscription_id,omitempty"`
 	// InputTokens holds the value of the "input_tokens" field.
@@ -341,7 +341,8 @@ func (_m *UsageLog) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field commission_rate", values[i])
 			} else if value.Valid {
-				_m.CommissionRate = value.Float64
+				_m.CommissionRate = new(float64)
+				*_m.CommissionRate = value.Float64
 			}
 		case usagelog.FieldSubscriptionID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -681,8 +682,10 @@ func (_m *UsageLog) String() string {
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
-	builder.WriteString("commission_rate=")
-	builder.WriteString(fmt.Sprintf("%v", _m.CommissionRate))
+	if v := _m.CommissionRate; v != nil {
+		builder.WriteString("commission_rate=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	if v := _m.SubscriptionID; v != nil {
 		builder.WriteString("subscription_id=")

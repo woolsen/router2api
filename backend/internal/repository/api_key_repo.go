@@ -178,6 +178,9 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldStatus,
 				group.FieldSubscriptionType,
 				group.FieldRateMultiplier,
+				// merchant_id 是写入用量行时快照商户归属的唯一来源：
+				// 认证投影漏选会让 usage_logs.merchant_id 恒为 NULL，结算整条链路失效。
+				group.FieldMerchantID,
 				group.FieldDailyLimitUsd,
 				group.FieldWeeklyLimitUsd,
 				group.FieldMonthlyLimitUsd,

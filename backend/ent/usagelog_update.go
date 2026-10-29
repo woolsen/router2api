@@ -337,6 +337,12 @@ func (_u *UsageLogUpdate) AddCommissionRate(v float64) *UsageLogUpdate {
 	return _u
 }
 
+// ClearCommissionRate clears the value of the "commission_rate" field.
+func (_u *UsageLogUpdate) ClearCommissionRate() *UsageLogUpdate {
+	_u.mutation.ClearCommissionRate()
+	return _u
+}
+
 // SetSubscriptionID sets the "subscription_id" field.
 func (_u *UsageLogUpdate) SetSubscriptionID(v int64) *UsageLogUpdate {
 	_u.mutation.SetSubscriptionID(v)
@@ -1255,6 +1261,9 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedCommissionRate(); ok {
 		_spec.AddField(usagelog.FieldCommissionRate, field.TypeFloat64, value)
 	}
+	if _u.mutation.CommissionRateCleared() {
+		_spec.ClearField(usagelog.FieldCommissionRate, field.TypeFloat64)
+	}
 	if value, ok := _u.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)
 	}
@@ -1911,6 +1920,12 @@ func (_u *UsageLogUpdateOne) SetNillableCommissionRate(v *float64) *UsageLogUpda
 // AddCommissionRate adds value to the "commission_rate" field.
 func (_u *UsageLogUpdateOne) AddCommissionRate(v float64) *UsageLogUpdateOne {
 	_u.mutation.AddCommissionRate(v)
+	return _u
+}
+
+// ClearCommissionRate clears the value of the "commission_rate" field.
+func (_u *UsageLogUpdateOne) ClearCommissionRate() *UsageLogUpdateOne {
+	_u.mutation.ClearCommissionRate()
 	return _u
 }
 
@@ -2861,6 +2876,9 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.AddedCommissionRate(); ok {
 		_spec.AddField(usagelog.FieldCommissionRate, field.TypeFloat64, value)
+	}
+	if _u.mutation.CommissionRateCleared() {
+		_spec.ClearField(usagelog.FieldCommissionRate, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)

@@ -2106,10 +2106,6 @@ func init() {
 	usagelogDescBillingMode := usagelogFields[12].Descriptor()
 	// usagelog.BillingModeValidator is a validator for the "billing_mode" field. It is called by the builders before save.
 	usagelog.BillingModeValidator = usagelogDescBillingMode.Validators[0].(func(string) error)
-	// usagelogDescCommissionRate is the schema descriptor for commission_rate field.
-	usagelogDescCommissionRate := usagelogFields[15].Descriptor()
-	// usagelog.DefaultCommissionRate holds the default value on creation for the commission_rate field.
-	usagelog.DefaultCommissionRate = usagelogDescCommissionRate.Default.(float64)
 	// usagelogDescInputTokens is the schema descriptor for input_tokens field.
 	usagelogDescInputTokens := usagelogFields[17].Descriptor()
 	// usagelog.DefaultInputTokens holds the default value on creation for the input_tokens field.

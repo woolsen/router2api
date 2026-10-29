@@ -1335,7 +1335,7 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 			upstreamModelMismatch,
 			groupID,
 			merchantID,
-			log.CommissionRate,
+			nullFloat64(log.CommissionRate),
 			subscriptionID,
 			log.InputTokens,
 			log.OutputTokens,

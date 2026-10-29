@@ -725,10 +725,6 @@ func (_c *UsageLogCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *UsageLogCreate) defaults() {
-	if _, ok := _c.mutation.CommissionRate(); !ok {
-		v := usagelog.DefaultCommissionRate
-		_c.mutation.SetCommissionRate(v)
-	}
 	if _, ok := _c.mutation.InputTokens(); !ok {
 		v := usagelog.DefaultInputTokens
 		_c.mutation.SetInputTokens(v)
@@ -867,9 +863,6 @@ func (_c *UsageLogCreate) check() error {
 		if err := usagelog.BillingModeValidator(v); err != nil {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
-	}
-	if _, ok := _c.mutation.CommissionRate(); !ok {
-		return &ValidationError{Name: "commission_rate", err: errors.New(`ent: missing required field "UsageLog.commission_rate"`)}
 	}
 	if _, ok := _c.mutation.InputTokens(); !ok {
 		return &ValidationError{Name: "input_tokens", err: errors.New(`ent: missing required field "UsageLog.input_tokens"`)}
@@ -1048,7 +1041,7 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	}
 	if value, ok := _c.mutation.CommissionRate(); ok {
 		_spec.SetField(usagelog.FieldCommissionRate, field.TypeFloat64, value)
-		_node.CommissionRate = value
+		_node.CommissionRate = &value
 	}
 	if value, ok := _c.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)
@@ -1582,6 +1575,12 @@ func (u *UsageLogUpsert) UpdateCommissionRate() *UsageLogUpsert {
 // AddCommissionRate adds v to the "commission_rate" field.
 func (u *UsageLogUpsert) AddCommissionRate(v float64) *UsageLogUpsert {
 	u.Add(usagelog.FieldCommissionRate, v)
+	return u
+}
+
+// ClearCommissionRate clears the value of the "commission_rate" field.
+func (u *UsageLogUpsert) ClearCommissionRate() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldCommissionRate)
 	return u
 }
 
@@ -2524,6 +2523,13 @@ func (u *UsageLogUpsertOne) AddCommissionRate(v float64) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateCommissionRate() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateCommissionRate()
+	})
+}
+
+// ClearCommissionRate clears the value of the "commission_rate" field.
+func (u *UsageLogUpsertOne) ClearCommissionRate() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearCommissionRate()
 	})
 }
 
@@ -3729,6 +3735,13 @@ func (u *UsageLogUpsertBulk) AddCommissionRate(v float64) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateCommissionRate() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateCommissionRate()
+	})
+}
+
+// ClearCommissionRate clears the value of the "commission_rate" field.
+func (u *UsageLogUpsertBulk) ClearCommissionRate() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearCommissionRate()
 	})
 }
 

@@ -149,21 +149,35 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 // 自营分组（无商户）必须落 NULL / 0。
 func TestPrepareUsageLogInsert_MerchantSnapshotArgWiring(t *testing.T) {
 	merchantID := int64(7)
+	commission := 0.08
 	prepared := prepareUsageLogInsert(&service.UsageLog{
 		UserID:         1,
 		APIKeyID:       2,
 		RequestID:      "client:merchant",
 		Model:          "gpt-5",
 		MerchantID:     &merchantID,
-		CommissionRate: 0.08,
+		CommissionRate: &commission,
 		CreatedAt:      time.Now().UTC(),
 	})
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 	require.Equal(t, "bigint", usageLogInsertArgTypes[10], "merchant_id must follow group_id")
 	require.Equal(t, "numeric", usageLogInsertArgTypes[11], "commission_rate must follow merchant_id")
 	require.Equal(t, sql.NullInt64{Int64: merchantID, Valid: true}, prepared.args[10])
-	require.InDelta(t, 0.08, prepared.args[11], 1e-12)
+	require.Equal(t, sql.NullFloat64{Float64: 0.08, Valid: true}, prepared.args[11])
 
+	// 商户已知但费率未知：merchant_id 必须落库，commission_rate 必须 NULL（不是 0）。
+	unknownRate := prepareUsageLogInsert(&service.UsageLog{
+		UserID:     1,
+		APIKeyID:   2,
+		RequestID:  "client:unknown-rate",
+		Model:      "gpt-5",
+		MerchantID: &merchantID,
+		CreatedAt:  time.Now().UTC(),
+	})
+	require.Equal(t, sql.NullInt64{Int64: merchantID, Valid: true}, unknownRate.args[10])
+	require.False(t, unknownRate.args[11].(sql.NullFloat64).Valid, "unknown commission_rate must persist as NULL")
+
+	// 平台自营：两列都为 NULL。
 	selfOperated := prepareUsageLogInsert(&service.UsageLog{
 		UserID:    1,
 		APIKeyID:  2,
@@ -173,7 +187,7 @@ func TestPrepareUsageLogInsert_MerchantSnapshotArgWiring(t *testing.T) {
 	})
 	selfMerchant := selfOperated.args[10].(sql.NullInt64)
 	require.False(t, selfMerchant.Valid, "self-operated usage must persist merchant_id as NULL")
-	require.Zero(t, selfOperated.args[11], "self-operated usage must persist commission_rate as 0")
+	require.False(t, selfOperated.args[11].(sql.NullFloat64).Valid, "self-operated usage must persist commission_rate as NULL")
 
 	require.Contains(t, usageLogSelectColumns, "merchant_id")
 	require.Contains(t, usageLogSelectColumns, "commission_rate")
