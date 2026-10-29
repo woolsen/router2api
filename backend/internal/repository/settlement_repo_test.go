@@ -41,6 +41,52 @@ func TestSettlementRepositoryAggregateUsageFiltersSettleableRows(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+// 补结需要从最早用量推导起始周。
+func TestSettlementRepositoryEarliestSettleableUsageAt(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := newSettlementRepositoryWithSQL(nil, db)
+	at := time.Date(2026, 3, 4, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`(?s)SELECT MIN\(created_at\)\s+FROM usage_logs\s+`+
+		`WHERE merchant_id = \$1\s+AND actual_cost > 0\s+AND billing_type = \$2`,
+	).
+		WithArgs(int64(3), int64(service.BillingTypeBalance)).
+		WillReturnRows(sqlmock.NewRows([]string{"min"}).AddRow(at))
+
+	got, err := repo.EarliestSettleableUsageAt(context.Background(), 3)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.True(t, got.Equal(at))
+
+	// 没有任何可结算用量：MIN 返回 NULL。
+	mock.ExpectQuery(`(?s)SELECT MIN\(created_at\).*`).
+		WithArgs(int64(4), int64(service.BillingTypeBalance)).
+		WillReturnRows(sqlmock.NewRows([]string{"min"}).AddRow(nil))
+
+	got, err = repo.EarliestSettleableUsageAt(context.Background(), 4)
+	require.NoError(t, err)
+	require.Nil(t, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSettlementRepositoryListSettledPeriodStarts(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := newSettlementRepositoryWithSQL(nil, db)
+	first := time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)
+	second := time.Date(2026, 3, 9, 0, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`(?s)SELECT period_start\s+FROM settlements\s+WHERE merchant_id = \$1\s+ORDER BY period_start`).
+		WithArgs(int64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{"period_start"}).AddRow(first).AddRow(second))
+
+	starts, err := repo.ListSettledPeriodStarts(context.Background(), 1)
+	require.NoError(t, err)
+	require.Len(t, starts, 2)
+	require.True(t, starts[0].Equal(first))
+	require.True(t, starts[1].Equal(second))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 // 同一账期重跑时，ON CONFLICT DO NOTHING + 回读已存在行，金额不被覆盖。
 func TestSettlementRepositoryCreateOrGetReturnsExistingOnConflict(t *testing.T) {
 	db, mock := newSQLMock(t)

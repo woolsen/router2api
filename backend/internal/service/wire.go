@@ -435,9 +435,9 @@ func ProvideProxyExpiryService(proxyRepo ProxyRepository) *ProxyExpiryService {
 	return svc
 }
 
-// ProvideSettlementService creates and starts SettlementService（每周一结算上一自然周）.
-func ProvideSettlementService(settlementRepo SettlementRepository) *SettlementService {
-	svc := NewSettlementService(settlementRepo)
+// ProvideSettlementService creates and starts SettlementService（每周结算已封账的自然周）.
+func ProvideSettlementService(settlementRepo SettlementRepository, cfg *config.Config) *SettlementService {
+	svc := NewSettlementService(settlementRepo, cfg)
 	svc.Start()
 	return svc
 }

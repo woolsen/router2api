@@ -35,6 +35,22 @@ WHERE merchant_id = $1
   AND actual_cost > 0
   AND billing_type = $4`
 
+// settlementEarliestUsageQuery 找出该商户最早一条可结算用量，用于从历史起点逐周补结。
+// 不按 commission_rate 过滤：即使某周只有费率未知的行，也要生成（零额）结算单，
+// 让 Generate 里的跳过日志留下可核对的记录。
+const settlementEarliestUsageQuery = `
+SELECT MIN(created_at)
+FROM usage_logs
+WHERE merchant_id = $1
+  AND actual_cost > 0
+  AND billing_type = $2`
+
+const settlementSettledPeriodStartsQuery = `
+SELECT period_start
+FROM settlements
+WHERE merchant_id = $1
+ORDER BY period_start`
+
 type settlementRepository struct {
 	client *dbent.Client
 	sql    sqlExecutor
@@ -110,6 +126,43 @@ func (r *settlementRepository) ListActiveMerchantIDs(ctx context.Context) ([]int
 			merchant.DeletedAtIsNil(),
 		).
 		IDs(ctx)
+}
+
+func (r *settlementRepository) EarliestSettleableUsageAt(ctx context.Context, merchantID int64) (*time.Time, error) {
+	var earliest *time.Time
+	err := scanSingleRow(ctx, r.sql, settlementEarliestUsageQuery,
+		[]any{merchantID, service.BillingTypeBalance},
+		&earliest,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// MIN() 聚合必然返回一行，这里只是防御性处理。
+			return nil, nil
+		}
+		return nil, err
+	}
+	return earliest, nil
+}
+
+func (r *settlementRepository) ListSettledPeriodStarts(ctx context.Context, merchantID int64) ([]time.Time, error) {
+	rows, err := r.sql.QueryContext(ctx, settlementSettledPeriodStartsQuery, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var starts []time.Time
+	for rows.Next() {
+		var start time.Time
+		if err := rows.Scan(&start); err != nil {
+			return nil, err
+		}
+		starts = append(starts, start.UTC())
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return starts, nil
 }
 
 func settlementEntityToService(s *dbent.Settlement) *service.Settlement {
