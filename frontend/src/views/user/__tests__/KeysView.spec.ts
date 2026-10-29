@@ -18,6 +18,7 @@ const {
   copyToClipboard,
   isCurrentStep,
   nextStep,
+  routeQuery,
 } = vi.hoisted(() => ({
   listKeys: vi.fn(),
   updateKey: vi.fn(),
@@ -30,6 +31,7 @@ const {
   copyToClipboard: vi.fn(),
   isCurrentStep: vi.fn(),
   nextStep: vi.fn(),
+  routeQuery: {} as Record<string, string>,
 }))
 
 const messages: Record<string, string> = {
@@ -84,6 +86,16 @@ vi.mock('@/stores/app', () => ({
     showSuccess,
   }),
 }))
+
+// KeysView 用 useRoute() 读取货架「使用」深链的 ?group_id；测试里没有安装 router，
+// 用可变的 routeQuery 模拟 query，既避免 TypeError 也能覆盖深链行为。
+vi.mock('vue-router', async () => {
+  const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+  return {
+    ...actual,
+    useRoute: () => ({ query: routeQuery }),
+  }
+})
 
 vi.mock('@/stores/onboarding', () => ({
   useOnboardingStore: () => ({
@@ -295,6 +307,9 @@ describe('user KeysView column settings', () => {
     getAvailableGroups.mockResolvedValue([])
     getUserGroupRates.mockResolvedValue({})
     isCurrentStep.mockReturnValue(false)
+    for (const key of Object.keys(routeQuery)) {
+      delete routeQuery[key]
+    }
   })
 
   it.each([
@@ -620,6 +635,20 @@ describe('user KeysView column settings', () => {
       expect(wrapper.get<HTMLInputElement>('input[value="domestic"]').element.checked).toBe(true)
       expect(wrapper.get<HTMLInputElement>('input[value="anthropic"]').element.disabled).toBe(true)
       expect(optionIds(wrapper)).toEqual([6])
+    })
+
+    it('preselects a non-anthropic group from the market deep link', async () => {
+      // 回归：watcher 曾无条件重选 provider，把 gemini（other）预选分组的 group_id
+      // 静默清空，只因为账号里还有 anthropic 分组。
+      routeQuery.group_id = '7'
+      const wrapper = await mountView()
+      await flushPromises()
+      await nextTick()
+
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+      expect(wrapper.get<HTMLInputElement>('input[name="key-provider"][value="other"]').element.checked).toBe(true)
+      expect(groupSelect(wrapper).props('modelValue')).toBe(7)
+      expect(optionIds(wrapper)).toContain(7)
     })
 
     it('shows the empty state when no groups are available', async () => {

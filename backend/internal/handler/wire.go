@@ -160,10 +160,10 @@ func ProvideBatchImageHandler(
 	return h
 }
 
-// ProvideMarketGroupsHandler 把模型广场服务适配成货架数据源。
-// 货架与 /model-plaza 共用渠道 SupportedModels 的模型枚举，不另建模型清单。
-func ProvideMarketGroupsHandler(plaza *service.ModelPlazaService) *MarketGroupsHandler {
-	return NewMarketGroupsHandler(plaza)
+// ProvideMarketGroupsHandler 把模型广场服务与可见性来源适配成货架 handler。
+// 货架与 /model-plaza 共用渠道 SupportedModels 的模型枚举和用户可见性规则。
+func ProvideMarketGroupsHandler(plaza *service.ModelPlazaService, apiKeyService *service.APIKeyService) *MarketGroupsHandler {
+	return NewMarketGroupsHandler(plaza, apiKeyService)
 }
 
 // ProvideSystemHandler creates admin.SystemHandler with UpdateService

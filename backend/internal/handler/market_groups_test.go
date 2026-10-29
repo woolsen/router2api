@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/woolsen/router2api/internal/server/middleware"
 	"github.com/woolsen/router2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,23 @@ func (f *fakeMarketGroupSource) ListGroups(context.Context) ([]service.PlazaGrou
 	return f.groups, f.err
 }
 
+// fakeMarketVisibility 是可见性替身：模拟 APIKeyService.GetUserGroupVisibility。
+type fakeMarketVisibility struct {
+	allowed        map[int64]struct{}
+	restrictPublic bool
+	err            error
+}
+
+func (f *fakeMarketVisibility) GetUserGroupVisibility(context.Context, int64) (map[int64]struct{}, bool, error) {
+	return f.allowed, f.restrictPublic, f.err
+}
+
+// newFakeMarketVisibility 返回一个“登录但没有任何专属授权、未开启公开分组限制”
+// 的可见性替身：非专属分组可见，专属分组不可见。
+func newFakeMarketVisibility() *fakeMarketVisibility {
+	return &fakeMarketVisibility{allowed: map[int64]struct{}{}}
+}
+
 // marketGroupResponse 是测试侧的解码形状。Stats 用 any 而不是指针：
 // JSON 里的 null 解码后为 nil，而字段缺失同样为 nil，所以另用原始 JSON 断言键存在。
 type marketGroupResponse struct {
@@ -36,14 +54,21 @@ type marketGroupResponse struct {
 	Stats          any      `json:"stats"`
 }
 
-// doGET 模拟一次 GET /api/v1/market/groups，返回解码后的 data 与原始响应体。
+// doGET 模拟一次带上登录身份的 GET /api/v1/market/groups。
 func doGET(t *testing.T, source MarketGroupSource) ([]marketGroupResponse, []byte) {
 	t.Helper()
+	return doGETWithVisibility(t, source, newFakeMarketVisibility())
+}
+
+func doGETWithVisibility(t *testing.T, source MarketGroupSource, visibility MarketVisibilitySource) ([]marketGroupResponse, []byte) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
-	h := NewMarketGroupsHandler(source)
+	h := NewMarketGroupsHandler(source, visibility)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/market/groups", nil)
+	// middleware.ContextKeyUser 是 "user"；这里直接写入认证主体，等价于 JWT 中间件。
+	c.Set("user", middleware.AuthSubject{UserID: 7})
 
 	h.List(c)
 
@@ -55,8 +80,8 @@ func doGET(t *testing.T, source MarketGroupSource) ([]marketGroupResponse, []byt
 	return envelope.Data, w.Body.Bytes()
 }
 
-// marketFixture 覆盖三种分组：两个入驻商户分组（倍率乱序）与一个平台自营分组。
-// 平台自营分组必须被货架过滤掉。
+// marketFixture 覆盖四种分组：两个普通入驻商户分组（倍率乱序）、一个专属入驻商户分组、
+// 一个平台自营分组。平台自营分组与未授权的专属分组都必须被货架过滤掉。
 func marketFixture() []service.PlazaGroup {
 	merchantA := int64(101)
 	merchantB := int64(202)
@@ -88,6 +113,17 @@ func marketFixture() []service.PlazaGroup {
 			Platform:       service.PlatformAnthropic,
 			RateMultiplier: 0.1,
 			MerchantID:     nil,
+			Models: []service.PlazaModel{
+				{Name: "claude-opus-4-1", Platform: service.PlatformAnthropic},
+			},
+		},
+		{
+			ID:             4,
+			Name:           "专属商户分组",
+			Platform:       service.PlatformAnthropic,
+			RateMultiplier: 0.25,
+			IsExclusive:    true,
+			MerchantID:     &merchantA,
 			Models: []service.PlazaModel{
 				{Name: "claude-opus-4-1", Platform: service.PlatformAnthropic},
 			},
@@ -140,6 +176,36 @@ func TestMarketGroupsSortsByRateAscending(t *testing.T) {
 	require.Equal(t, int64(2), resp[1].ID)
 }
 
+func TestMarketGroupsHidesUngrantedExclusiveGroup(t *testing.T) {
+	// 普通登录用户没有任何专属授权：专属商户分组的名称与倍率都不能泄漏到货架。
+	resp, _ := doGET(t, &fakeMarketGroupSource{groups: marketFixture()})
+	for i := range resp {
+		require.NotEqual(t, int64(4), resp[i].ID, "exclusive group must not leak to a user without a grant")
+	}
+	require.Len(t, resp, 2)
+}
+
+func TestMarketGroupsShowsGrantedExclusiveGroup(t *testing.T) {
+	resp, _ := doGETWithVisibility(t, &fakeMarketGroupSource{groups: marketFixture()}, &fakeMarketVisibility{
+		allowed: map[int64]struct{}{4: {}},
+	})
+	ids := make([]int64, 0, len(resp))
+	for i := range resp {
+		ids = append(ids, resp[i].ID)
+	}
+	require.ElementsMatch(t, []int64{1, 2, 4}, ids, "granted exclusive group must be visible")
+}
+
+func TestMarketGroupsRespectsRestrictPublicGroups(t *testing.T) {
+	// 用户开启公开分组限制后，未授权的公开分组同样不上架，只剩授权集合内的分组。
+	resp, _ := doGETWithVisibility(t, &fakeMarketGroupSource{groups: marketFixture()}, &fakeMarketVisibility{
+		allowed:        map[int64]struct{}{1: {}},
+		restrictPublic: true,
+	})
+	require.Len(t, resp, 1)
+	require.Equal(t, int64(1), resp[0].ID)
+}
+
 func TestMarketGroupsHidesMerchantIdentityAndUpstream(t *testing.T) {
 	_, raw := doGET(t, &fakeMarketGroupSource{groups: marketFixture()})
 
@@ -177,12 +243,38 @@ func TestMarketGroupsEmptyShelfIsArray(t *testing.T) {
 
 func TestMarketGroupsSourceError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h := NewMarketGroupsHandler(&fakeMarketGroupSource{err: errors.New("boom")})
+	h := NewMarketGroupsHandler(&fakeMarketGroupSource{err: errors.New("boom")}, newFakeMarketVisibility())
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/market/groups", nil)
+	c.Set("user", middleware.AuthSubject{UserID: 7})
+
+	h.List(c)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMarketGroupsVisibilityError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewMarketGroupsHandler(&fakeMarketGroupSource{groups: marketFixture()}, &fakeMarketVisibility{err: errors.New("boom")})
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/market/groups", nil)
+	c.Set("user", middleware.AuthSubject{UserID: 7})
+
+	h.List(c)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMarketGroupsRequiresAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewMarketGroupsHandler(&fakeMarketGroupSource{groups: marketFixture()}, newFakeMarketVisibility())
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/market/groups", nil)
 
 	h.List(c)
 
-	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }

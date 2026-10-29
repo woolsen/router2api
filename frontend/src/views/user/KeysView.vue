@@ -1550,7 +1550,11 @@ const selectCreateProvider = (provider: KeyGroupProvider) => {
 // Also handles groups arriving after the create dialog has already opened.
 watch([showCreateModal, createProviderOptions], ([isOpen, providers], [wasOpen]) => {
   if (!isOpen) return
-  if (!wasOpen || !providers.some((provider) => provider.value === createProvider.value && provider.count > 0)) {
+  // 深链预选（货架「使用」）已经指定了分组：provider 必须跟随该分组，
+  // 不能被“第一个有分组的 provider”覆盖，否则 selectCreateProvider 会把
+  // group_id 静默置空（例如从货架点开 gemini 分组、但账号里还有 anthropic 分组）。
+  const hasPreselectedGroup = formData.value.group_id !== null
+  if (!hasPreselectedGroup && (!wasOpen || !providers.some((provider) => provider.value === createProvider.value && provider.count > 0))) {
     selectCreateProvider(providers.find((provider) => provider.count > 0)?.value ?? 'anthropic')
   }
   if (!formGroupOptions.value.some((group) => group.value === formData.value.group_id)) {
@@ -1651,7 +1655,9 @@ const loadGroups = async () => {
 // 货架「使用」深链：/keys?group_id=N 预选分组并打开创建弹窗。
 // 分组不在当前用户可绑定列表（已下架或无权限）时不打开弹窗，避免提交必然失败的请求。
 const applyMarketGroupQuery = () => {
-  const raw = route.query.group_id
+  // 测试环境可能不安装 router，此时 useRoute() 返回 undefined；不能因此抛错。
+  const query = route?.query
+  const raw = query?.group_id
   const value = Array.isArray(raw) ? raw[0] : raw
   const groupID = Number(value)
   if (!value || !Number.isInteger(groupID) || groupID <= 0) return

@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/woolsen/router2api/internal/pkg/response"
+	"github.com/woolsen/router2api/internal/server/middleware"
 	"github.com/woolsen/router2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -19,17 +20,28 @@ type MarketGroupSource interface {
 	ListGroups(ctx context.Context) ([]service.PlazaGroup, error)
 }
 
+// MarketVisibilitySource 提供当前用户的可见分组集合与公开分组限制开关。
+//
+// 生产实现是 *service.APIKeyService（与 /model-plaza 完全同源）。货架必须复用这套
+// 可见性规则，否则专属分组的名称与倍率会暴露给无权用户，用户也会看到自己绑不了的
+// 分组。
+type MarketVisibilitySource interface {
+	GetUserGroupVisibility(ctx context.Context, userID int64) (map[int64]struct{}, bool, error)
+}
+
 // MarketGroupsHandler 处理货架（market）的只读查询。
 //
-// 货架只展示入驻商户（merchant_id IS NOT NULL）且状态为 active 的分组；数据源的
-// ListGroups 只列 active 分组，这里再按商户归属过滤，平台自营分组不上架。
+// 货架只展示入驻商户（merchant_id IS NOT NULL）且状态为 active、且对当前用户可见的
+// 分组：数据源的 ListGroups 只列 active 分组，这里再按商户归属与可见性过滤，平台
+// 自营分组与用户无权访问的专属分组都不上架。
 type MarketGroupsHandler struct {
-	source MarketGroupSource
+	source     MarketGroupSource
+	visibility MarketVisibilitySource
 }
 
 // NewMarketGroupsHandler 创建货架 handler。
-func NewMarketGroupsHandler(source MarketGroupSource) *MarketGroupsHandler {
-	return &MarketGroupsHandler{source: source}
+func NewMarketGroupsHandler(source MarketGroupSource, visibility MarketVisibilitySource) *MarketGroupsHandler {
+	return &MarketGroupsHandler{source: source, visibility: visibility}
 }
 
 // marketGroup 是货架分组条目（对外白名单字段）。
@@ -51,20 +63,40 @@ type marketGroup struct {
 // List 返回货架分组列表，按倍率升序（同倍率按名称）。
 // GET /api/v1/market/groups
 func (h *MarketGroupsHandler) List(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	// 与 /model-plaza 相同的可见性裁剪：未授权的专属分组、受限用户的公开分组
+	// 都不能出现在货架上。
+	allowedGroups, restrictPublicGroups, err := h.visibility.GetUserGroupVisibility(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
 	groups, err := h.source.ListGroups(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	acceptLanguage := c.GetHeader("Accept-Language")
-	out := make([]marketGroup, 0, len(groups))
+	visible := make([]service.PlazaGroup, 0, len(groups))
 	for i := range groups {
-		g := &groups[i]
 		// 平台自营分组（merchant_id IS NULL）不是货架商品。
-		if g.MerchantID == nil {
+		if groups[i].MerchantID == nil {
 			continue
 		}
+		visible = append(visible, groups[i])
+	}
+	visible = filterPlazaVisibleGroups(visible, allowedGroups, restrictPublicGroups)
+
+	acceptLanguage := c.GetHeader("Accept-Language")
+	out := make([]marketGroup, 0, len(visible))
+	for i := range visible {
+		g := &visible[i]
 		models := make([]string, 0, len(g.Models))
 		for j := range g.Models {
 			models = append(models, g.Models[j].Name)
