@@ -43,6 +43,7 @@ import (
 	"github.com/woolsen/router2api/ent/redeemcode"
 	"github.com/woolsen/router2api/ent/securitysecret"
 	"github.com/woolsen/router2api/ent/setting"
+	"github.com/woolsen/router2api/ent/settlement"
 	"github.com/woolsen/router2api/ent/subscriptionplan"
 	"github.com/woolsen/router2api/ent/tlsfingerprintprofile"
 	"github.com/woolsen/router2api/ent/usagecleanuptask"
@@ -95,6 +96,7 @@ const (
 	TypeRedeemCode                    = "RedeemCode"
 	TypeSecuritySecret                = "SecuritySecret"
 	TypeSetting                       = "Setting"
+	TypeSettlement                    = "Settlement"
 	TypeSubscriptionPlan              = "SubscriptionPlan"
 	TypeTLSFingerprintProfile         = "TLSFingerprintProfile"
 	TypeUsageCleanupTask              = "UsageCleanupTask"
@@ -41984,6 +41986,899 @@ func (m *SettingMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *SettingMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Setting edge %s", name)
+}
+
+// SettlementMutation represents an operation that mutates the Settlement nodes in the graph.
+type SettlementMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int64
+	merchant_id    *int64
+	addmerchant_id *int64
+	period_start   *time.Time
+	period_end     *time.Time
+	gross_cost     *float64
+	addgross_cost  *float64
+	commission     *float64
+	addcommission  *float64
+	net_payable    *float64
+	addnet_payable *float64
+	status         *string
+	created_at     *time.Time
+	updated_at     *time.Time
+	clearedFields  map[string]struct{}
+	done           bool
+	oldValue       func(context.Context) (*Settlement, error)
+	predicates     []predicate.Settlement
+}
+
+var _ ent.Mutation = (*SettlementMutation)(nil)
+
+// settlementOption allows management of the mutation configuration using functional options.
+type settlementOption func(*SettlementMutation)
+
+// newSettlementMutation creates new mutation for the Settlement entity.
+func newSettlementMutation(c config, op Op, opts ...settlementOption) *SettlementMutation {
+	m := &SettlementMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSettlement,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSettlementID sets the ID field of the mutation.
+func withSettlementID(id int64) settlementOption {
+	return func(m *SettlementMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Settlement
+		)
+		m.oldValue = func(ctx context.Context) (*Settlement, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Settlement.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSettlement sets the old Settlement of the mutation.
+func withSettlement(node *Settlement) settlementOption {
+	return func(m *SettlementMutation) {
+		m.oldValue = func(context.Context) (*Settlement, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SettlementMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SettlementMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SettlementMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SettlementMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Settlement.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (m *SettlementMutation) SetMerchantID(i int64) {
+	m.merchant_id = &i
+	m.addmerchant_id = nil
+}
+
+// MerchantID returns the value of the "merchant_id" field in the mutation.
+func (m *SettlementMutation) MerchantID() (r int64, exists bool) {
+	v := m.merchant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMerchantID returns the old "merchant_id" field's value of the Settlement entity.
+// If the Settlement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SettlementMutation) OldMerchantID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMerchantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMerchantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMerchantID: %w", err)
+	}
+	return oldValue.MerchantID, nil
+}
+
+// AddMerchantID adds i to the "merchant_id" field.
+func (m *SettlementMutation) AddMerchantID(i int64) {
+	if m.addmerchant_id != nil {
+		*m.addmerchant_id += i
+	} else {
+		m.addmerchant_id = &i
+	}
+}
+
+// AddedMerchantID returns the value that was added to the "merchant_id" field in this mutation.
+func (m *SettlementMutation) AddedMerchantID() (r int64, exists bool) {
+	v := m.addmerchant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMerchantID resets all changes to the "merchant_id" field.
+func (m *SettlementMutation) ResetMerchantID() {
+	m.merchant_id = nil
+	m.addmerchant_id = nil
+}
+
+// SetPeriodStart sets the "period_start" field.
+func (m *SettlementMutation) SetPeriodStart(t time.Time) {
+	m.period_start = &t
+}
+
+// PeriodStart returns the value of the "period_start" field in the mutation.
+func (m *SettlementMutation) PeriodStart() (r time.Time, exists bool) {
+	v := m.period_start
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeriodStart returns the old "period_start" field's value of the Settlement entity.
+// If the Settlement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SettlementMutation) OldPeriodStart(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeriodStart is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeriodStart requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeriodStart: %w", err)
+	}
+	return oldValue.PeriodStart, nil
+}
+
+// ResetPeriodStart resets all changes to the "period_start" field.
+func (m *SettlementMutation) ResetPeriodStart() {
+	m.period_start = nil
+}
+
+// SetPeriodEnd sets the "period_end" field.
+func (m *SettlementMutation) SetPeriodEnd(t time.Time) {
+	m.period_end = &t
+}
+
+// PeriodEnd returns the value of the "period_end" field in the mutation.
+func (m *SettlementMutation) PeriodEnd() (r time.Time, exists bool) {
+	v := m.period_end
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeriodEnd returns the old "period_end" field's value of the Settlement entity.
+// If the Settlement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SettlementMutation) OldPeriodEnd(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeriodEnd is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeriodEnd requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeriodEnd: %w", err)
+	}
+	return oldValue.PeriodEnd, nil
+}
+
+// ResetPeriodEnd resets all changes to the "period_end" field.
+func (m *SettlementMutation) ResetPeriodEnd() {
+	m.period_end = nil
+}
+
+// SetGrossCost sets the "gross_cost" field.
+func (m *SettlementMutation) SetGrossCost(f float64) {
+	m.gross_cost = &f
+	m.addgross_cost = nil
+}
+
+// GrossCost returns the value of the "gross_cost" field in the mutation.
+func (m *SettlementMutation) GrossCost() (r float64, exists bool) {
+	v := m.gross_cost
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrossCost returns the old "gross_cost" field's value of the Settlement entity.
+// If the Settlement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SettlementMutation) OldGrossCost(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrossCost is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrossCost requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrossCost: %w", err)
+	}
+	return oldValue.GrossCost, nil
+}
+
+// AddGrossCost adds f to the "gross_cost" field.
+func (m *SettlementMutation) AddGrossCost(f float64) {
+	if m.addgross_cost != nil {
+		*m.addgross_cost += f
+	} else {
+		m.addgross_cost = &f
+	}
+}
+
+// AddedGrossCost returns the value that was added to the "gross_cost" field in this mutation.
+func (m *SettlementMutation) AddedGrossCost() (r float64, exists bool) {
+	v := m.addgross_cost
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGrossCost resets all changes to the "gross_cost" field.
+func (m *SettlementMutation) ResetGrossCost() {
+	m.gross_cost = nil
+	m.addgross_cost = nil
+}
+
+// SetCommission sets the "commission" field.
+func (m *SettlementMutation) SetCommission(f float64) {
+	m.commission = &f
+	m.addcommission = nil
+}
+
+// Commission returns the value of the "commission" field in the mutation.
+func (m *SettlementMutation) Commission() (r float64, exists bool) {
+	v := m.commission
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCommission returns the old "commission" field's value of the Settlement entity.
+// If the Settlement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SettlementMutation) OldCommission(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCommission is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCommission requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCommission: %w", err)
+	}
+	return oldValue.Commission, nil
+}
+
+// AddCommission adds f to the "commission" field.
+func (m *SettlementMutation) AddCommission(f float64) {
+	if m.addcommission != nil {
+		*m.addcommission += f
+	} else {
+		m.addcommission = &f
+	}
+}
+
+// AddedCommission returns the value that was added to the "commission" field in this mutation.
+func (m *SettlementMutation) AddedCommission() (r float64, exists bool) {
+	v := m.addcommission
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCommission resets all changes to the "commission" field.
+func (m *SettlementMutation) ResetCommission() {
+	m.commission = nil
+	m.addcommission = nil
+}
+
+// SetNetPayable sets the "net_payable" field.
+func (m *SettlementMutation) SetNetPayable(f float64) {
+	m.net_payable = &f
+	m.addnet_payable = nil
+}
+
+// NetPayable returns the value of the "net_payable" field in the mutation.
+func (m *SettlementMutation) NetPayable() (r float64, exists bool) {
+	v := m.net_payable
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNetPayable returns the old "net_payable" field's value of the Settlement entity.
+// If the Settlement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SettlementMutation) OldNetPayable(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNetPayable is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNetPayable requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNetPayable: %w", err)
+	}
+	return oldValue.NetPayable, nil
+}
+
+// AddNetPayable adds f to the "net_payable" field.
+func (m *SettlementMutation) AddNetPayable(f float64) {
+	if m.addnet_payable != nil {
+		*m.addnet_payable += f
+	} else {
+		m.addnet_payable = &f
+	}
+}
+
+// AddedNetPayable returns the value that was added to the "net_payable" field in this mutation.
+func (m *SettlementMutation) AddedNetPayable() (r float64, exists bool) {
+	v := m.addnet_payable
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetNetPayable resets all changes to the "net_payable" field.
+func (m *SettlementMutation) ResetNetPayable() {
+	m.net_payable = nil
+	m.addnet_payable = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *SettlementMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *SettlementMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the Settlement entity.
+// If the Settlement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SettlementMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *SettlementMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *SettlementMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *SettlementMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Settlement entity.
+// If the Settlement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SettlementMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *SettlementMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *SettlementMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *SettlementMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the Settlement entity.
+// If the Settlement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SettlementMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *SettlementMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the SettlementMutation builder.
+func (m *SettlementMutation) Where(ps ...predicate.Settlement) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SettlementMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SettlementMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Settlement, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SettlementMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SettlementMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Settlement).
+func (m *SettlementMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SettlementMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.merchant_id != nil {
+		fields = append(fields, settlement.FieldMerchantID)
+	}
+	if m.period_start != nil {
+		fields = append(fields, settlement.FieldPeriodStart)
+	}
+	if m.period_end != nil {
+		fields = append(fields, settlement.FieldPeriodEnd)
+	}
+	if m.gross_cost != nil {
+		fields = append(fields, settlement.FieldGrossCost)
+	}
+	if m.commission != nil {
+		fields = append(fields, settlement.FieldCommission)
+	}
+	if m.net_payable != nil {
+		fields = append(fields, settlement.FieldNetPayable)
+	}
+	if m.status != nil {
+		fields = append(fields, settlement.FieldStatus)
+	}
+	if m.created_at != nil {
+		fields = append(fields, settlement.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, settlement.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SettlementMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case settlement.FieldMerchantID:
+		return m.MerchantID()
+	case settlement.FieldPeriodStart:
+		return m.PeriodStart()
+	case settlement.FieldPeriodEnd:
+		return m.PeriodEnd()
+	case settlement.FieldGrossCost:
+		return m.GrossCost()
+	case settlement.FieldCommission:
+		return m.Commission()
+	case settlement.FieldNetPayable:
+		return m.NetPayable()
+	case settlement.FieldStatus:
+		return m.Status()
+	case settlement.FieldCreatedAt:
+		return m.CreatedAt()
+	case settlement.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SettlementMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case settlement.FieldMerchantID:
+		return m.OldMerchantID(ctx)
+	case settlement.FieldPeriodStart:
+		return m.OldPeriodStart(ctx)
+	case settlement.FieldPeriodEnd:
+		return m.OldPeriodEnd(ctx)
+	case settlement.FieldGrossCost:
+		return m.OldGrossCost(ctx)
+	case settlement.FieldCommission:
+		return m.OldCommission(ctx)
+	case settlement.FieldNetPayable:
+		return m.OldNetPayable(ctx)
+	case settlement.FieldStatus:
+		return m.OldStatus(ctx)
+	case settlement.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case settlement.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Settlement field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SettlementMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case settlement.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMerchantID(v)
+		return nil
+	case settlement.FieldPeriodStart:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPeriodStart(v)
+		return nil
+	case settlement.FieldPeriodEnd:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPeriodEnd(v)
+		return nil
+	case settlement.FieldGrossCost:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrossCost(v)
+		return nil
+	case settlement.FieldCommission:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCommission(v)
+		return nil
+	case settlement.FieldNetPayable:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNetPayable(v)
+		return nil
+	case settlement.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case settlement.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case settlement.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Settlement field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SettlementMutation) AddedFields() []string {
+	var fields []string
+	if m.addmerchant_id != nil {
+		fields = append(fields, settlement.FieldMerchantID)
+	}
+	if m.addgross_cost != nil {
+		fields = append(fields, settlement.FieldGrossCost)
+	}
+	if m.addcommission != nil {
+		fields = append(fields, settlement.FieldCommission)
+	}
+	if m.addnet_payable != nil {
+		fields = append(fields, settlement.FieldNetPayable)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SettlementMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case settlement.FieldMerchantID:
+		return m.AddedMerchantID()
+	case settlement.FieldGrossCost:
+		return m.AddedGrossCost()
+	case settlement.FieldCommission:
+		return m.AddedCommission()
+	case settlement.FieldNetPayable:
+		return m.AddedNetPayable()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SettlementMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case settlement.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMerchantID(v)
+		return nil
+	case settlement.FieldGrossCost:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGrossCost(v)
+		return nil
+	case settlement.FieldCommission:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCommission(v)
+		return nil
+	case settlement.FieldNetPayable:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddNetPayable(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Settlement numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SettlementMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SettlementMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SettlementMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Settlement nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SettlementMutation) ResetField(name string) error {
+	switch name {
+	case settlement.FieldMerchantID:
+		m.ResetMerchantID()
+		return nil
+	case settlement.FieldPeriodStart:
+		m.ResetPeriodStart()
+		return nil
+	case settlement.FieldPeriodEnd:
+		m.ResetPeriodEnd()
+		return nil
+	case settlement.FieldGrossCost:
+		m.ResetGrossCost()
+		return nil
+	case settlement.FieldCommission:
+		m.ResetCommission()
+		return nil
+	case settlement.FieldNetPayable:
+		m.ResetNetPayable()
+		return nil
+	case settlement.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case settlement.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case settlement.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Settlement field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SettlementMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SettlementMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SettlementMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SettlementMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SettlementMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SettlementMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SettlementMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Settlement unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SettlementMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Settlement edge %s", name)
 }
 
 // SubscriptionPlanMutation represents an operation that mutates the SubscriptionPlan nodes in the graph.

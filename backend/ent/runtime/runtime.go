@@ -36,6 +36,7 @@ import (
 	"github.com/woolsen/router2api/ent/schema"
 	"github.com/woolsen/router2api/ent/securitysecret"
 	"github.com/woolsen/router2api/ent/setting"
+	"github.com/woolsen/router2api/ent/settlement"
 	"github.com/woolsen/router2api/ent/subscriptionplan"
 	"github.com/woolsen/router2api/ent/tlsfingerprintprofile"
 	"github.com/woolsen/router2api/ent/usagecleanuptask"
@@ -1902,6 +1903,36 @@ func init() {
 	setting.DefaultUpdatedAt = settingDescUpdatedAt.Default.(func() time.Time)
 	// setting.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	setting.UpdateDefaultUpdatedAt = settingDescUpdatedAt.UpdateDefault.(func() time.Time)
+	settlementFields := schema.Settlement{}.Fields()
+	_ = settlementFields
+	// settlementDescGrossCost is the schema descriptor for gross_cost field.
+	settlementDescGrossCost := settlementFields[3].Descriptor()
+	// settlement.DefaultGrossCost holds the default value on creation for the gross_cost field.
+	settlement.DefaultGrossCost = settlementDescGrossCost.Default.(float64)
+	// settlementDescCommission is the schema descriptor for commission field.
+	settlementDescCommission := settlementFields[4].Descriptor()
+	// settlement.DefaultCommission holds the default value on creation for the commission field.
+	settlement.DefaultCommission = settlementDescCommission.Default.(float64)
+	// settlementDescNetPayable is the schema descriptor for net_payable field.
+	settlementDescNetPayable := settlementFields[5].Descriptor()
+	// settlement.DefaultNetPayable holds the default value on creation for the net_payable field.
+	settlement.DefaultNetPayable = settlementDescNetPayable.Default.(float64)
+	// settlementDescStatus is the schema descriptor for status field.
+	settlementDescStatus := settlementFields[6].Descriptor()
+	// settlement.DefaultStatus holds the default value on creation for the status field.
+	settlement.DefaultStatus = settlementDescStatus.Default.(string)
+	// settlement.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	settlement.StatusValidator = settlementDescStatus.Validators[0].(func(string) error)
+	// settlementDescCreatedAt is the schema descriptor for created_at field.
+	settlementDescCreatedAt := settlementFields[7].Descriptor()
+	// settlement.DefaultCreatedAt holds the default value on creation for the created_at field.
+	settlement.DefaultCreatedAt = settlementDescCreatedAt.Default.(func() time.Time)
+	// settlementDescUpdatedAt is the schema descriptor for updated_at field.
+	settlementDescUpdatedAt := settlementFields[8].Descriptor()
+	// settlement.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	settlement.DefaultUpdatedAt = settlementDescUpdatedAt.Default.(func() time.Time)
+	// settlement.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	settlement.UpdateDefaultUpdatedAt = settlementDescUpdatedAt.UpdateDefault.(func() time.Time)
 	subscriptionplanFields := schema.SubscriptionPlan{}.Fields()
 	_ = subscriptionplanFields
 	// subscriptionplanDescName is the schema descriptor for name field.

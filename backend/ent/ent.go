@@ -42,6 +42,7 @@ import (
 	"github.com/woolsen/router2api/ent/redeemcode"
 	"github.com/woolsen/router2api/ent/securitysecret"
 	"github.com/woolsen/router2api/ent/setting"
+	"github.com/woolsen/router2api/ent/settlement"
 	"github.com/woolsen/router2api/ent/subscriptionplan"
 	"github.com/woolsen/router2api/ent/tlsfingerprintprofile"
 	"github.com/woolsen/router2api/ent/usagecleanuptask"
@@ -142,6 +143,7 @@ func checkColumn(t, c string) error {
 			redeemcode.Table:                    redeemcode.ValidColumn,
 			securitysecret.Table:                securitysecret.ValidColumn,
 			setting.Table:                       setting.ValidColumn,
+			settlement.Table:                    settlement.ValidColumn,
 			subscriptionplan.Table:              subscriptionplan.ValidColumn,
 			tlsfingerprintprofile.Table:         tlsfingerprintprofile.ValidColumn,
 			usagecleanuptask.Table:              usagecleanuptask.ValidColumn,

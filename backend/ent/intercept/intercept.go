@@ -39,6 +39,7 @@ import (
 	"github.com/woolsen/router2api/ent/redeemcode"
 	"github.com/woolsen/router2api/ent/securitysecret"
 	"github.com/woolsen/router2api/ent/setting"
+	"github.com/woolsen/router2api/ent/settlement"
 	"github.com/woolsen/router2api/ent/subscriptionplan"
 	"github.com/woolsen/router2api/ent/tlsfingerprintprofile"
 	"github.com/woolsen/router2api/ent/usagecleanuptask"
@@ -917,6 +918,33 @@ func (f TraverseSetting) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.SettingQuery", q)
 }
 
+// The SettlementFunc type is an adapter to allow the use of ordinary function as a Querier.
+type SettlementFunc func(context.Context, *ent.SettlementQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f SettlementFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.SettlementQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.SettlementQuery", q)
+}
+
+// The TraverseSettlement type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseSettlement func(context.Context, *ent.SettlementQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseSettlement) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseSettlement) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.SettlementQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.SettlementQuery", q)
+}
+
 // The SubscriptionPlanFunc type is an adapter to allow the use of ordinary function as a Querier.
 type SubscriptionPlanFunc func(context.Context, *ent.SubscriptionPlanQuery) (ent.Value, error)
 
@@ -1250,6 +1278,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.SecuritySecretQuery, predicate.SecuritySecret, securitysecret.OrderOption]{typ: ent.TypeSecuritySecret, tq: q}, nil
 	case *ent.SettingQuery:
 		return &query[*ent.SettingQuery, predicate.Setting, setting.OrderOption]{typ: ent.TypeSetting, tq: q}, nil
+	case *ent.SettlementQuery:
+		return &query[*ent.SettlementQuery, predicate.Settlement, settlement.OrderOption]{typ: ent.TypeSettlement, tq: q}, nil
 	case *ent.SubscriptionPlanQuery:
 		return &query[*ent.SubscriptionPlanQuery, predicate.SubscriptionPlan, subscriptionplan.OrderOption]{typ: ent.TypeSubscriptionPlan, tq: q}, nil
 	case *ent.TLSFingerprintProfileQuery:

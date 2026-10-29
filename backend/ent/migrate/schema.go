@@ -1579,6 +1579,37 @@ var (
 		Columns:    SettingsColumns,
 		PrimaryKey: []*schema.Column{SettingsColumns[0]},
 	}
+	// SettlementsColumns holds the columns for the "settlements" table.
+	SettlementsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "merchant_id", Type: field.TypeInt64},
+		{Name: "period_start", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "period_end", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "gross_cost", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
+		{Name: "commission", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
+		{Name: "net_payable", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "pending"},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// SettlementsTable holds the schema information for the "settlements" table.
+	SettlementsTable = &schema.Table{
+		Name:       "settlements",
+		Columns:    SettlementsColumns,
+		PrimaryKey: []*schema.Column{SettlementsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "settlement_merchant_id_period_start_period_end",
+				Unique:  true,
+				Columns: []*schema.Column{SettlementsColumns[1], SettlementsColumns[2], SettlementsColumns[3]},
+			},
+			{
+				Name:    "settlement_status",
+				Unique:  false,
+				Columns: []*schema.Column{SettlementsColumns[7]},
+			},
+		},
+	}
 	// SubscriptionPlansColumns holds the columns for the "subscription_plans" table.
 	SubscriptionPlansColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2164,6 +2195,7 @@ var (
 		RedeemCodesTable,
 		SecuritySecretsTable,
 		SettingsTable,
+		SettlementsTable,
 		SubscriptionPlansTable,
 		TLSFingerprintProfilesTable,
 		UsageCleanupTasksTable,
@@ -2290,6 +2322,9 @@ func init() {
 	}
 	SettingsTable.Annotation = &entsql.Annotation{
 		Table: "settings",
+	}
+	SettlementsTable.Annotation = &entsql.Annotation{
+		Table: "settlements",
 	}
 	SubscriptionPlansTable.Annotation = &entsql.Annotation{
 		Table: "subscription_plans",
