@@ -68,21 +68,24 @@ WHERE merchant_id = $2
   AND commission_rate IS NOT NULL
 ON CONFLICT (settlement_id, usage_log_id) DO NOTHING`
 
-// settlementCreateOrGetQuery 幂等建单：唯一索引冲突时回读已存在行，不覆盖已封账金额。
+// settlementInsertQuery 幂等建单：唯一索引冲突时 DO NOTHING，由下一条 SELECT 回读。
 // created_at / dispute_deadline 使用数据库默认值，保证 deadline 严格等于 created_at + 7 days。
-const settlementCreateOrGetQuery = `
-WITH inserted AS (
-    INSERT INTO settlements (merchant_id, period_start, period_end, gross_cost, commission, net_payable, status)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
-    ON CONFLICT (merchant_id, period_start, period_end) DO NOTHING
-    RETURNING ` + settlementColumns + `
-)
-SELECT ` + settlementColumns + ` FROM inserted
-UNION ALL
-SELECT ` + settlementColumns + ` FROM settlements
-WHERE merchant_id = $1 AND period_start = $2 AND period_end = $3
-  AND NOT EXISTS (SELECT 1 FROM inserted)
-LIMIT 1`
+//
+// 不能用 CTE 在一条语句里同时 INSERT ... ON CONFLICT DO NOTHING 和 SELECT：
+// PostgreSQL 的语句快照在语句开始时取得。并发事务尚未提交时，INSERT 会等对方提交，
+// 但同一语句里的 SELECT 仍用旧快照，看不到刚提交的冲突行，整条语句返回 0 行。
+const settlementInsertQuery = `
+INSERT INTO settlements (merchant_id, period_start, period_end, gross_cost, commission, net_payable, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (merchant_id, period_start, period_end) DO NOTHING
+RETURNING ` + settlementColumns
+
+// settlementSelectByPeriodQuery 必须作为 INSERT 之后的独立语句执行：
+// 新语句会重新取快照，能看到并发事务刚刚提交的冲突行。
+const settlementSelectByPeriodQuery = `
+SELECT ` + settlementColumns + `
+FROM settlements
+WHERE merchant_id = $1 AND period_start = $2 AND period_end = $3`
 
 type sqlBeginner interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
@@ -138,16 +141,7 @@ func (r *settlementRepository) CreateOrGet(ctx context.Context, s *service.Settl
 
 	var out service.Settlement
 	var createdAt, updatedAt time.Time
-	err = scanSingleRow(ctx, tx, settlementCreateOrGetQuery,
-		[]any{
-			s.MerchantID,
-			s.PeriodStart.UTC(),
-			s.PeriodEnd.UTC(),
-			s.GrossCost,
-			s.Commission,
-			s.NetPayable,
-			s.Status,
-		},
+	dest := []any{
 		&out.ID,
 		&out.MerchantID,
 		&out.PeriodStart,
@@ -161,16 +155,37 @@ func (r *settlementRepository) CreateOrGet(ctx context.Context, s *service.Settl
 		&out.ConfirmedAt,
 		&out.PaidAt,
 		&out.DisputeDeadline,
-	)
+	}
+
+	created := true
+	err = scanSingleRow(ctx, tx, settlementInsertQuery,
+		[]any{
+			s.MerchantID,
+			s.PeriodStart.UTC(),
+			s.PeriodEnd.UTC(),
+			s.GrossCost,
+			s.Commission,
+			s.NetPayable,
+			s.Status,
+		}, dest...)
+	if errors.Is(err, sql.ErrNoRows) {
+		// 唯一键冲突：同一事务里的新语句能看到对方已提交的行。
+		created = false
+		err = scanSingleRow(ctx, tx, settlementSelectByPeriodQuery,
+			[]any{s.MerchantID, s.PeriodStart.UTC(), s.PeriodEnd.UTC()}, dest...)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	// 明细写入与建单同一事务；已存在的老结算单也会补齐（ON CONFLICT DO NOTHING 幂等）。
-	if _, err := tx.ExecContext(ctx, settlementItemsInsertQuery,
-		out.ID, out.MerchantID, out.PeriodStart.UTC(), out.PeriodEnd.UTC(), service.BillingTypeBalance,
-	); err != nil {
-		return nil, err
+	// 明细只在本次真正新建结算单时写入。重跑已存在的结算单不得追加迟到的 usage 行，
+	// 否则 SUM(items.cost) 会超过已封账的 gross_cost。
+	if created {
+		if _, err := tx.ExecContext(ctx, settlementItemsInsertQuery,
+			out.ID, out.MerchantID, out.PeriodStart.UTC(), out.PeriodEnd.UTC(), service.BillingTypeBalance,
+		); err != nil {
+			return nil, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err

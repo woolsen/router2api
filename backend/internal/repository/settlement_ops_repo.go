@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	dbent "github.com/woolsen/router2api/ent"
@@ -33,7 +34,7 @@ WHERE id = $1
 FOR UPDATE`
 
 const settlementDisputeLockQuery = `
-SELECT status, dispute_deadline
+SELECT status, dispute_deadline, merchant_id, net_payable
 FROM settlements
 WHERE id = $1
 FOR UPDATE`
@@ -71,6 +72,32 @@ WHERE id = $1
 ON CONFLICT (merchant_id) DO UPDATE
 SET balance = merchant_balance.balance + EXCLUDED.balance,
     updated_at = EXCLUDED.updated_at`
+
+// settlementDisputeHoldLedgerInsert 记录申诉冻结：已入账余额从可用额度转入冻结。
+// amount 记为 -net_payable（与 settle 的 +net_payable 相反）；
+// UNIQUE(type, ref_type, ref_id) 保证同一结算单只冻结一次。
+const settlementDisputeHoldLedgerInsert = `
+INSERT INTO merchant_ledger (merchant_id, type, amount, ref_type, ref_id, created_at)
+SELECT merchant_id, 'dispute_hold', -net_payable, 'settlement', id, $2
+FROM settlements
+WHERE id = $1
+ON CONFLICT (type, ref_type, ref_id) DO NOTHING`
+
+// settlementDisputeHoldBalance 把已入账金额从 balance 移到 frozen。
+// 金额直接取 settlements.net_payable，避免经过 Go 的 float64 再写回；
+// 冲突分支里的 EXCLUDED.frozen 就是本次要冻结的 net_payable。
+// 不检查余额是否足够：商户可能已经提现，此时允许 balance 为负，
+// 由调用方记录日志交运营人工处理，不能静默跳过冻结。
+const settlementDisputeHoldBalance = `
+INSERT INTO merchant_balance (merchant_id, balance, frozen, updated_at)
+SELECT merchant_id, -net_payable, net_payable, $2
+FROM settlements
+WHERE id = $1
+ON CONFLICT (merchant_id) DO UPDATE
+SET balance = merchant_balance.balance - EXCLUDED.frozen,
+    frozen = merchant_balance.frozen + EXCLUDED.frozen,
+    updated_at = EXCLUDED.updated_at
+RETURNING balance`
 
 const settlementAuditInsert = `
 INSERT INTO audit_logs (
@@ -235,6 +262,8 @@ func (r *settlementRepository) ConfirmSettlement(
 
 // DisputeSettlement 用条件更新完成 pending|confirmed → disputed，
 // 并在 SQL 层再次检查 dispute_deadline，避免调用方时钟与数据库判断不一致。
+// confirmed 来源已在确认时入账，必须在同一事务内把净额从 balance 转入 frozen；
+// pending 来源从未入账，不冻结。
 func (r *settlementRepository) DisputeSettlement(
 	ctx context.Context,
 	settlementID int64,
@@ -247,9 +276,14 @@ func (r *settlementRepository) DisputeSettlement(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var status string
-	var deadline *time.Time
-	err = tx.QueryRowContext(ctx, settlementDisputeLockQuery, settlementID).Scan(&status, &deadline)
+	var (
+		status     string
+		deadline   *time.Time
+		merchantID int64
+		netPayable float64
+	)
+	err = tx.QueryRowContext(ctx, settlementDisputeLockQuery, settlementID).
+		Scan(&status, &deadline, &merchantID, &netPayable)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return service.SettlementTransition{}, service.ErrSettlementNotFound
@@ -281,6 +315,14 @@ func (r *settlementRepository) DisputeSettlement(
 		return service.SettlementTransition{}, service.ErrSettlementConflict
 	}
 
+	// pending → disputed 从未入账，不冻结；
+	// confirmed → disputed 已入账，必须同事务把 net_payable 从可用余额转入冻结。
+	if status == service.SettlementStatusConfirmed {
+		if err := holdDisputedSettlementBalance(ctx, tx, settlementID, merchantID, netPayable, at); err != nil {
+			return service.SettlementTransition{}, err
+		}
+	}
+
 	if err := insertSettlementAudit(ctx, tx, settlementID, "settlement.disputed", service.SettlementDisputeActor, reason, at); err != nil {
 		return service.SettlementTransition{}, err
 	}
@@ -288,6 +330,40 @@ func (r *settlementRepository) DisputeSettlement(
 		return service.SettlementTransition{}, err
 	}
 	return service.SettlementTransition{Applied: true, Status: service.SettlementStatusDisputed}, nil
+}
+
+// holdDisputedSettlementBalance 在申诉事务内冻结已入账的结算净额。
+// 先写 dispute_hold 流水，只有流水真正插入时才调整余额；唯一键命中说明已经冻结过。
+func holdDisputedSettlementBalance(
+	ctx context.Context,
+	tx *sql.Tx,
+	settlementID, merchantID int64,
+	netPayable float64,
+	at time.Time,
+) error {
+	res, err := tx.ExecContext(ctx, settlementDisputeHoldLedgerInsert, settlementID, at.UTC())
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return nil
+	}
+
+	var balanceAfter float64
+	if err := tx.QueryRowContext(ctx, settlementDisputeHoldBalance,
+		settlementID, at.UTC()).Scan(&balanceAfter); err != nil {
+		return err
+	}
+	if balanceAfter < 0 {
+		log.Printf(
+			"[Settlement] dispute hold overdrew merchant %d: settlement %d net %.10f, balance after hold %.10f < 0; the merchant may already have withdrawn these funds, manual reconciliation required",
+			merchantID, settlementID, netPayable, balanceAfter)
+	}
+	return nil
 }
 
 func (r *settlementRepository) beginSettlementTx(ctx context.Context) (*sql.Tx, error) {

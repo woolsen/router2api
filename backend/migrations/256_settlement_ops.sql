@@ -52,10 +52,30 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_merchant_ledger_source
 CREATE INDEX IF NOT EXISTS idx_merchant_ledger_merchant_created
     ON merchant_ledger(merchant_id, created_at DESC);
 
+-- 为 settlement_items 上线前已生成的结算单回填明细。
+-- 过滤条件必须与 settlementAggregateQuery 保持一致：
+--   actual_cost > 0（排除失败请求占位行）
+--   billing_type = 0（BillingTypeBalance，只算用户实付）
+--   commission_rate IS NOT NULL（费率未知的行不按 0 结算）
+-- ON CONFLICT 保证重复执行不会追加已于建单时写入的明细。
+INSERT INTO settlement_items (settlement_id, usage_log_id, cost, commission)
+SELECT s.id, u.id, u.actual_cost, u.actual_cost * u.commission_rate
+FROM settlements s
+JOIN usage_logs u
+  ON u.merchant_id = s.merchant_id
+ AND u.created_at >= s.period_start
+ AND u.created_at < s.period_end
+WHERE u.actual_cost > 0
+  AND u.billing_type = 0
+  AND u.commission_rate IS NOT NULL
+ON CONFLICT (settlement_id, usage_log_id) DO NOTHING;
+
 COMMENT ON COLUMN settlements.status IS 'pending 待确认 / confirmed 已确认 / disputed 申诉中 / paid 已打款';
 COMMENT ON COLUMN settlements.confirmed_at IS '确认时间（手动或 7 天自动确认）';
 COMMENT ON COLUMN settlements.paid_at IS '打款完成时间';
 COMMENT ON COLUMN settlements.dispute_deadline IS '申诉截止时间 = created_at + 7 days';
 COMMENT ON TABLE settlement_items IS '结算单用量明细，生成结算单时逐条快照';
-COMMENT ON TABLE merchant_balance IS '商户资金余额（唯一可加锁账本行）';
+COMMENT ON TABLE merchant_balance IS '商户资金余额（唯一可加锁账本行）；balance 是可用额（提现口径），frozen 是冻结额（申诉等）';
+COMMENT ON COLUMN merchant_balance.balance IS '可用余额；Task 5 的提现可用额直接读此列（Available = balance）';
+COMMENT ON COLUMN merchant_balance.frozen IS '冻结余额；已确认结算单申诉时从 balance 转入';
 COMMENT ON TABLE merchant_ledger IS '商户资金流水；UNIQUE(type, ref_type, ref_id) 保证同源单据只入账一次';

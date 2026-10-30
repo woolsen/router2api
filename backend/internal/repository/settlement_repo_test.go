@@ -87,9 +87,16 @@ func TestSettlementRepositoryListSettledPeriodStarts(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-// 同一账期重跑时，ON CONFLICT DO NOTHING + 回读已存在行，金额不被覆盖；
-// 明细写入与建单在同一事务，靠唯一索引保证幂等。
-func TestSettlementRepositoryCreateOrGetReturnsExistingOnConflict(t *testing.T) {
+func settlementTestColumns() []string {
+	return []string{
+		"id", "merchant_id", "period_start", "period_end",
+		"gross_cost", "commission", "net_payable", "status",
+		"created_at", "updated_at", "confirmed_at", "paid_at", "dispute_deadline",
+	}
+}
+
+// 新建结算单时，建单与明细写入在同一事务，明细只写一次。
+func TestSettlementRepositoryCreateOrGetCreatesNewSettlementWithItems(t *testing.T) {
 	db, mock := newSQLMock(t)
 	drv := entsql.OpenDB(dialect.Postgres, db)
 	client := dbent.NewClient(dbent.Driver(drv))
@@ -102,16 +109,52 @@ func TestSettlementRepositoryCreateOrGetReturnsExistingOnConflict(t *testing.T) 
 	deadline := now.Add(service.SettlementDisputeWindow)
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`(?s)WITH inserted AS \(\s+INSERT INTO settlements .*ON CONFLICT .*DO NOTHING\s+RETURNING id, merchant_id.*\)\s+SELECT id, merchant_id.*FROM inserted\s+UNION ALL\s+SELECT id, merchant_id.*FROM settlements.*NOT EXISTS`).
-		WithArgs(int64(1), from, to, 999.0, 999.0, 999.0, service.SettlementStatusPending).
-		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "merchant_id", "period_start", "period_end",
-			"gross_cost", "commission", "net_payable", "status",
-			"created_at", "updated_at", "confirmed_at", "paid_at", "dispute_deadline",
-		}).AddRow(int64(9), int64(1), from, to, 35.0, 2.8, 32.2, service.SettlementStatusPending, now, now, nil, nil, deadline))
+	mock.ExpectQuery(`(?s)INSERT INTO settlements .*ON CONFLICT \(merchant_id, period_start, period_end\) DO NOTHING\s+RETURNING id, merchant_id.*`).
+		WithArgs(int64(1), from, to, 35.0, 2.8, 32.2, service.SettlementStatusPending).
+		WillReturnRows(sqlmock.NewRows(settlementTestColumns()).
+			AddRow(int64(9), int64(1), from, to, 35.0, 2.8, 32.2, service.SettlementStatusPending, now, now, nil, nil, deadline))
 	mock.ExpectExec(`(?s)INSERT INTO settlement_items .*ON CONFLICT \(settlement_id, usage_log_id\) DO NOTHING`).
 		WithArgs(int64(9), int64(1), from, to, int64(service.BillingTypeBalance)).
 		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectCommit()
+
+	got, err := repo.CreateOrGet(context.Background(), &service.Settlement{
+		MerchantID:  1,
+		PeriodStart: from,
+		PeriodEnd:   to,
+		GrossCost:   35,
+		Commission:  2.8,
+		NetPayable:  32.2,
+		Status:      service.SettlementStatusPending,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(9), got.ID)
+	require.InDelta(t, 35, got.GrossCost, 1e-9)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 同一账期重跑时，INSERT ... DO NOTHING 由下一条语句回读已存在行：
+// 金额不被覆盖，且不得再追加迟到的 usage 明细（否则 SUM(items.cost) > gross_cost）。
+func TestSettlementRepositoryCreateOrGetConflictDoesNotAppendItems(t *testing.T) {
+	db, mock := newSQLMock(t)
+	drv := entsql.OpenDB(dialect.Postgres, db)
+	client := dbent.NewClient(dbent.Driver(drv))
+	t.Cleanup(func() { _ = client.Close() })
+	repo := newSettlementRepositoryWithSQL(client, db)
+
+	from := time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 3, 9, 0, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 3, 9, 0, 0, 1, 0, time.UTC)
+	deadline := now.Add(service.SettlementDisputeWindow)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)INSERT INTO settlements .*ON CONFLICT \(merchant_id, period_start, period_end\) DO NOTHING\s+RETURNING id, merchant_id.*`).
+		WithArgs(int64(1), from, to, 999.0, 999.0, 999.0, service.SettlementStatusPending).
+		WillReturnRows(sqlmock.NewRows(settlementTestColumns()))
+	mock.ExpectQuery(`(?s)SELECT id, merchant_id.*FROM settlements\s+WHERE merchant_id = \$1 AND period_start = \$2 AND period_end = \$3`).
+		WithArgs(int64(1), from, to).
+		WillReturnRows(sqlmock.NewRows(settlementTestColumns()).
+			AddRow(int64(9), int64(1), from, to, 35.0, 2.8, 32.2, service.SettlementStatusPending, now, now, nil, nil, deadline))
 	mock.ExpectCommit()
 
 	got, err := repo.CreateOrGet(context.Background(), &service.Settlement{

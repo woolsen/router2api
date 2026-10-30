@@ -112,8 +112,8 @@ func TestSettlementRepositoryDisputeRejectsClosedWindow(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery(regexp.QuoteMeta(settlementDisputeLockQuery)).
 		WithArgs(int64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"status", "dispute_deadline"}).
-			AddRow(service.SettlementStatusPending, deadline))
+		WillReturnRows(sqlmock.NewRows([]string{"status", "dispute_deadline", "merchant_id", "net_payable"}).
+			AddRow(service.SettlementStatusPending, deadline, int64(1), 42.0))
 	mock.ExpectRollback()
 
 	tr, err := repo.DisputeSettlement(context.Background(), 11, "late", at)
@@ -132,8 +132,8 @@ func TestSettlementRepositoryDisputeMovesPendingToDisputed(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery(regexp.QuoteMeta(settlementDisputeLockQuery)).
 		WithArgs(int64(12)).
-		WillReturnRows(sqlmock.NewRows([]string{"status", "dispute_deadline"}).
-			AddRow(service.SettlementStatusPending, deadline))
+		WillReturnRows(sqlmock.NewRows([]string{"status", "dispute_deadline", "merchant_id", "net_payable"}).
+			AddRow(service.SettlementStatusPending, deadline, int64(1), 42.0))
 	mock.ExpectExec(regexp.QuoteMeta(settlementDisputeUpdate)).
 		WithArgs(int64(12), service.SettlementStatusDisputed, at,
 			service.SettlementStatusPending, service.SettlementStatusConfirmed).
@@ -147,6 +147,103 @@ func TestSettlementRepositoryDisputeMovesPendingToDisputed(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, tr.Applied)
 	require.Equal(t, service.SettlementStatusDisputed, tr.Status)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 已 confirmed 的结算单被申诉时，必须在同一事务内把净额从 balance 转入 frozen。
+func TestSettlementRepositoryDisputeConfirmedFreezesCreditedBalance(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := newSettlementRepositoryWithSQL(nil, db)
+	at := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	deadline := at.Add(time.Hour)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(settlementDisputeLockQuery)).
+		WithArgs(int64(14)).
+		WillReturnRows(sqlmock.NewRows([]string{"status", "dispute_deadline", "merchant_id", "net_payable"}).
+			AddRow(service.SettlementStatusConfirmed, deadline, int64(7), 30.5))
+	mock.ExpectExec(regexp.QuoteMeta(settlementDisputeUpdate)).
+		WithArgs(int64(14), service.SettlementStatusDisputed, at,
+			service.SettlementStatusPending, service.SettlementStatusConfirmed).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(settlementDisputeHoldLedgerInsert)).
+		WithArgs(int64(14), at).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(regexp.QuoteMeta(settlementDisputeHoldBalance)).
+		WithArgs(int64(14), at).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(19.5))
+	mock.ExpectExec(regexp.QuoteMeta(settlementAuditInsert)).
+		WithArgs(at, service.SettlementDisputeActor, "settlement.disputed", "/settlements/14", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	tr, err := repo.DisputeSettlement(context.Background(), 14, "amount mismatch", at)
+	require.NoError(t, err)
+	require.True(t, tr.Applied)
+	require.Equal(t, service.SettlementStatusDisputed, tr.Status)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 已提现导致余额不足时也要落冻结（balance 允许为负），不能跳过。
+func TestSettlementRepositoryDisputeConfirmedAllowsNegativeBalance(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := newSettlementRepositoryWithSQL(nil, db)
+	at := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	deadline := at.Add(time.Hour)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(settlementDisputeLockQuery)).
+		WithArgs(int64(15)).
+		WillReturnRows(sqlmock.NewRows([]string{"status", "dispute_deadline", "merchant_id", "net_payable"}).
+			AddRow(service.SettlementStatusConfirmed, deadline, int64(7), 30.5))
+	mock.ExpectExec(regexp.QuoteMeta(settlementDisputeUpdate)).
+		WithArgs(int64(15), service.SettlementStatusDisputed, at,
+			service.SettlementStatusPending, service.SettlementStatusConfirmed).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(settlementDisputeHoldLedgerInsert)).
+		WithArgs(int64(15), at).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(regexp.QuoteMeta(settlementDisputeHoldBalance)).
+		WithArgs(int64(15), at).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(-10.5))
+	mock.ExpectExec(regexp.QuoteMeta(settlementAuditInsert)).
+		WithArgs(at, service.SettlementDisputeActor, "settlement.disputed", "/settlements/15", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	tr, err := repo.DisputeSettlement(context.Background(), 15, "amount mismatch", at)
+	require.NoError(t, err)
+	require.True(t, tr.Applied)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 同一结算单已经冻结过（唯一键命中）时，不再重复扣减余额。
+func TestSettlementRepositoryDisputeConfirmedLedgerConflictDoesNotFreezeAgain(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := newSettlementRepositoryWithSQL(nil, db)
+	at := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	deadline := at.Add(time.Hour)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(settlementDisputeLockQuery)).
+		WithArgs(int64(16)).
+		WillReturnRows(sqlmock.NewRows([]string{"status", "dispute_deadline", "merchant_id", "net_payable"}).
+			AddRow(service.SettlementStatusConfirmed, deadline, int64(7), 30.5))
+	mock.ExpectExec(regexp.QuoteMeta(settlementDisputeUpdate)).
+		WithArgs(int64(16), service.SettlementStatusDisputed, at,
+			service.SettlementStatusPending, service.SettlementStatusConfirmed).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(settlementDisputeHoldLedgerInsert)).
+		WithArgs(int64(16), at).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(regexp.QuoteMeta(settlementAuditInsert)).
+		WithArgs(at, service.SettlementDisputeActor, "settlement.disputed", "/settlements/16", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	tr, err := repo.DisputeSettlement(context.Background(), 16, "amount mismatch", at)
+	require.NoError(t, err)
+	require.True(t, tr.Applied)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

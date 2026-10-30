@@ -75,6 +75,25 @@ VALUES ($1, $2, $3, 'settlement-test', $4, $5, $6, 0.1, $7)`,
 	require.NoError(t, integrationDB.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM merchant_balance WHERE merchant_id = $1`, merchantID).Scan(&balanceRows))
 	require.Zero(t, balanceRows)
+
+	// 封账后迟到的 usage 行：重跑 Generate 返回同一张单，且不得追加明细。
+	// 否则 SUM(settlement_items.cost) 会超过已封账的 gross_cost。
+	insertUsage(5, from.Add(3*time.Hour))
+	again, err := svc.Generate(ctx, merchantID, from, to)
+	require.NoError(t, err)
+	require.Equal(t, settlement.ID, again.ID)
+	require.InDelta(t, 30, again.GrossCost, 1e-9)
+
+	items, err = ops.Explore(ctx, settlement.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 2, "重跑不得追加迟到 usage 的明细")
+	totalCost, totalCommission = 0, 0
+	for _, item := range items {
+		totalCost += item.Cost
+		totalCommission += item.Commission
+	}
+	require.InDelta(t, 30, totalCost, 1e-9)
+	require.InDelta(t, 3, totalCommission, 1e-9)
 }
 
 func TestSettlementOpsRepositoryIntegrationConfirmCreditsOnce(t *testing.T) {
@@ -121,18 +140,116 @@ RETURNING id`, merchantID, from, to).Scan(&settlementID)
 		merchantID, settlementID).Scan(&ledgerRows))
 	require.Equal(t, 1, ledgerRows)
 
-	// 已确认但未过申诉窗口可以转 disputed；disputed 后不能再确认/入账。
+	// 已确认但未过申诉窗口可以转 disputed；已入账净额必须从可用余额转入冻结。
 	tr, err = repo.DisputeSettlement(ctx, settlementID, "amount mismatch", at.Add(2*time.Minute))
 	require.NoError(t, err)
 	require.True(t, tr.Applied)
 	require.Equal(t, service.SettlementStatusDisputed, tr.Status)
 
+	var frozen float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT balance, frozen FROM merchant_balance WHERE merchant_id = $1`, merchantID).
+		Scan(&balance, &frozen))
+	require.InDelta(t, 0, balance, 1e-9, "申诉冻结后可用余额必须扣减")
+	require.InDelta(t, 100, frozen, 1e-9, "冻结额必须等于结算净额")
+
+	var holdRows int
+	var holdAmount float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM merchant_ledger WHERE merchant_id = $1 AND type = 'dispute_hold' AND ref_type = 'settlement' AND ref_id = $2`,
+		merchantID, settlementID).Scan(&holdRows, &holdAmount))
+	require.Equal(t, 1, holdRows)
+	require.InDelta(t, -100, holdAmount, 1e-9, "dispute_hold 记 -net_payable")
+
+	// 重复申诉不重复冻结。
+	tr, err = repo.DisputeSettlement(ctx, settlementID, "amount mismatch", at.Add(150*time.Second))
+	require.NoError(t, err)
+	require.False(t, tr.Applied)
+	require.Equal(t, service.SettlementStatusDisputed, tr.Status)
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT balance, frozen FROM merchant_balance WHERE merchant_id = $1`, merchantID).
+		Scan(&balance, &frozen))
+	require.InDelta(t, 0, balance, 1e-9)
+	require.InDelta(t, 100, frozen, 1e-9)
+
 	tr, err = repo.ConfirmSettlement(ctx, settlementID, "integration@test", at.Add(3*time.Minute))
 	require.NoError(t, err)
 	require.False(t, tr.Applied)
 	require.Equal(t, service.SettlementStatusDisputed, tr.Status)
-
 	require.NoError(t, integrationDB.QueryRowContext(ctx,
 		`SELECT balance FROM merchant_balance WHERE merchant_id = $1`, merchantID).Scan(&balance))
-	require.InDelta(t, 100, balance, 1e-9)
+	require.InDelta(t, 0, balance, 1e-9)
+}
+
+func TestSettlementOpsRepositoryIntegrationDisputeConfirmedAllowsNegativeBalance(t *testing.T) {
+	ctx := context.Background()
+	repo := NewSettlementOpsRepository(integrationEntClient, integrationDB)
+
+	merchantID := int64(991004)
+	from := time.Now().UTC().Add(-48 * time.Hour).Truncate(time.Second)
+	to := from.Add(24 * time.Hour)
+
+	var settlementID int64
+	err := integrationDB.QueryRowContext(ctx, `
+INSERT INTO settlements (merchant_id, period_start, period_end, gross_cost, commission, net_payable, status)
+VALUES ($1, $2, $3, 110, 10, 100, 'confirmed')
+RETURNING id`, merchantID, from, to).Scan(&settlementID)
+	require.NoError(t, err)
+	// 模拟商户已提现一部分：确认入账 100 后只剩 40 可用。
+	_, err = integrationDB.ExecContext(ctx, `
+INSERT INTO merchant_balance (merchant_id, balance, frozen) VALUES ($1, 40, 0)
+ON CONFLICT (merchant_id) DO UPDATE SET balance = 40, frozen = 0`, merchantID)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = integrationDB.ExecContext(ctx, `DELETE FROM merchant_ledger WHERE merchant_id = $1`, merchantID)
+		_, _ = integrationDB.ExecContext(ctx, `DELETE FROM merchant_balance WHERE merchant_id = $1`, merchantID)
+		_, _ = integrationDB.ExecContext(ctx, `DELETE FROM settlements WHERE id = $1`, settlementID)
+		_, _ = integrationDB.ExecContext(ctx, `DELETE FROM audit_logs WHERE path = $1`, fmt.Sprintf("/settlements/%d", settlementID))
+	})
+
+	tr, err := repo.DisputeSettlement(ctx, settlementID, "amount mismatch", time.Now().UTC())
+	require.NoError(t, err)
+	require.True(t, tr.Applied)
+
+	var balance, frozen float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT balance, frozen FROM merchant_balance WHERE merchant_id = $1`, merchantID).
+		Scan(&balance, &frozen))
+	require.InDelta(t, -60, balance, 1e-9, "余额不足也必须冻结，允许 balance 为负")
+	require.InDelta(t, 100, frozen, 1e-9)
+}
+
+func TestSettlementOpsRepositoryIntegrationDisputePendingDoesNotFreeze(t *testing.T) {
+	ctx := context.Background()
+	repo := NewSettlementOpsRepository(integrationEntClient, integrationDB)
+
+	merchantID := int64(991003)
+	from := time.Now().UTC().Add(-48 * time.Hour).Truncate(time.Second)
+	to := from.Add(24 * time.Hour)
+
+	var settlementID int64
+	err := integrationDB.QueryRowContext(ctx, `
+INSERT INTO settlements (merchant_id, period_start, period_end, gross_cost, commission, net_payable, status)
+VALUES ($1, $2, $3, 110, 10, 100, 'pending')
+RETURNING id`, merchantID, from, to).Scan(&settlementID)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = integrationDB.ExecContext(ctx, `DELETE FROM merchant_ledger WHERE merchant_id = $1`, merchantID)
+		_, _ = integrationDB.ExecContext(ctx, `DELETE FROM merchant_balance WHERE merchant_id = $1`, merchantID)
+		_, _ = integrationDB.ExecContext(ctx, `DELETE FROM settlements WHERE id = $1`, settlementID)
+		_, _ = integrationDB.ExecContext(ctx, `DELETE FROM audit_logs WHERE path = $1`, fmt.Sprintf("/settlements/%d", settlementID))
+	})
+
+	tr, err := repo.DisputeSettlement(ctx, settlementID, "amount mismatch", time.Now().UTC())
+	require.NoError(t, err)
+	require.True(t, tr.Applied)
+	require.Equal(t, service.SettlementStatusDisputed, tr.Status)
+
+	var balanceRows, ledgerRows int
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM merchant_balance WHERE merchant_id = $1`, merchantID).Scan(&balanceRows))
+	require.Zero(t, balanceRows, "pending 从未入账，申诉不得冻结或创建余额行")
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM merchant_ledger WHERE merchant_id = $1`, merchantID).Scan(&ledgerRows))
+	require.Zero(t, ledgerRows)
 }

@@ -116,6 +116,8 @@ func (o *SettlementOps) Confirm(ctx context.Context, settlementID int64, by stri
 }
 
 // Dispute 发起商户申诉：pending|confirmed → disputed，仅限 7 天窗口内且未打款。
+// confirmed 的结算单已在确认时入账，申诉时由仓储在同一事务内把 net_payable
+// 从可用余额转入冻结；pending 从未入账，不冻结。
 func (o *SettlementOps) Dispute(ctx context.Context, settlementID int64, reason string) error {
 	if o == nil || o.repo == nil || settlementID <= 0 {
 		return ErrSettlementNotFound

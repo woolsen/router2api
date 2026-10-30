@@ -18,6 +18,7 @@ type fakeSettlementOpsRepo struct {
 	settlements map[int64]*Settlement
 	items       map[int64][]SettlementItem
 	balances    map[int64]float64
+	frozen      map[int64]float64
 	ledger      map[string]struct{}
 
 	nextID       int64
@@ -30,6 +31,7 @@ func newFakeSettlementOpsRepo() *fakeSettlementOpsRepo {
 		settlements: make(map[int64]*Settlement),
 		items:       make(map[int64][]SettlementItem),
 		balances:    make(map[int64]float64),
+		frozen:      make(map[int64]float64),
 		ledger:      make(map[string]struct{}),
 	}
 }
@@ -131,7 +133,17 @@ func (r *fakeSettlementOpsRepo) DisputeSettlement(_ context.Context, settlementI
 	if s.DisputeDeadline != nil && !at.Before(*s.DisputeDeadline) {
 		return SettlementTransition{Applied: false, Status: s.Status, DisputeWindowClosed: true}, nil
 	}
+
+	wasConfirmed := s.Status == SettlementStatusConfirmed
 	s.Status = SettlementStatusDisputed
+	if wasConfirmed {
+		key := "dispute_hold|settlement|" + strconv.FormatInt(settlementID, 10)
+		if _, exists := r.ledger[key]; !exists {
+			r.ledger[key] = struct{}{}
+			r.balances[s.MerchantID] -= s.NetPayable
+			r.frozen[s.MerchantID] += s.NetPayable
+		}
+	}
 	return SettlementTransition{Applied: true, Status: SettlementStatusDisputed}, nil
 }
 
@@ -207,6 +219,41 @@ func TestDisputeMovesSettlementAndBlocksConfirm(t *testing.T) {
 
 	err := ops.Confirm(context.Background(), s.ID, "ops")
 	require.ErrorIs(t, err, ErrSettlementDisputed)
+}
+
+func TestSettlementDisputePendingDoesNotFreeze(t *testing.T) {
+	now := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	ops, repo := newOpsTest(t, now)
+	s := repo.seedSettlement(now.Add(-2*24*time.Hour), SettlementStatusPending, 10)
+
+	require.NoError(t, ops.Dispute(context.Background(), s.ID, "amount mismatch"))
+	require.Zero(t, repo.balances[s.MerchantID], "pending 结算单从未入账，申诉时不应冻结")
+	require.Zero(t, repo.frozen[s.MerchantID])
+	require.Empty(t, repo.ledger)
+}
+
+func TestSettlementDisputeConfirmedFreezesCreditedBalance(t *testing.T) {
+	now := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	ops, repo := newOpsTest(t, now)
+	s := repo.seedSettlement(now.Add(-2*24*time.Hour), SettlementStatusConfirmed, 80)
+	repo.balances[s.MerchantID] = 80 // 已确认入账
+
+	require.NoError(t, ops.Dispute(context.Background(), s.ID, "amount mismatch"))
+	require.Equal(t, SettlementStatusDisputed, repo.settlements[s.ID].Status)
+	require.InDelta(t, 0, repo.balances[s.MerchantID], 1e-9)
+	require.InDelta(t, 80, repo.frozen[s.MerchantID], 1e-9)
+	require.Contains(t, repo.ledger, "dispute_hold|settlement|"+strconv.FormatInt(s.ID, 10))
+}
+
+func TestSettlementDisputeConfirmedAllowsNegativeBalance(t *testing.T) {
+	now := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	ops, repo := newOpsTest(t, now)
+	s := repo.seedSettlement(now.Add(-2*24*time.Hour), SettlementStatusConfirmed, 80)
+	repo.balances[s.MerchantID] = 50 // 已提现一部分
+
+	require.NoError(t, ops.Dispute(context.Background(), s.ID, "amount mismatch"))
+	require.InDelta(t, -30, repo.balances[s.MerchantID], 1e-9)
+	require.InDelta(t, 80, repo.frozen[s.MerchantID], 1e-9)
 }
 
 func TestDisputeAfterDeadlineIsRejected(t *testing.T) {
