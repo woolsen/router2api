@@ -41,6 +41,7 @@ import (
 	"github.com/woolsen/router2api/ent/promocodeusage"
 	"github.com/woolsen/router2api/ent/proxy"
 	"github.com/woolsen/router2api/ent/redeemcode"
+	"github.com/woolsen/router2api/ent/requestmetric"
 	"github.com/woolsen/router2api/ent/securitysecret"
 	"github.com/woolsen/router2api/ent/setting"
 	"github.com/woolsen/router2api/ent/settlement"
@@ -94,6 +95,7 @@ const (
 	TypePromoCodeUsage                = "PromoCodeUsage"
 	TypeProxy                         = "Proxy"
 	TypeRedeemCode                    = "RedeemCode"
+	TypeRequestMetric                 = "RequestMetric"
 	TypeSecuritySecret                = "SecuritySecret"
 	TypeSetting                       = "Setting"
 	TypeSettlement                    = "Settlement"
@@ -41064,6 +41066,1477 @@ func (m *RedeemCodeMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode edge %s", name)
+}
+
+// RequestMetricMutation represents an operation that mutates the RequestMetric nodes in the graph.
+type RequestMetricMutation struct {
+	config
+	op                       Op
+	typ                      string
+	id                       *int64
+	request_id               *string
+	user_id                  *int64
+	adduser_id               *int64
+	api_key_id               *int64
+	addapi_key_id            *int64
+	group_id                 *int64
+	addgroup_id              *int64
+	merchant_id              *int64
+	addmerchant_id           *int64
+	model                    *string
+	status_code              *int
+	addstatus_code           *int
+	upstream_error           *bool
+	duration_ms              *int
+	addduration_ms           *int
+	first_token_ms           *int
+	addfirst_token_ms        *int
+	input_tokens             *int
+	addinput_tokens          *int
+	output_tokens            *int
+	addoutput_tokens         *int
+	cache_read_tokens        *int
+	addcache_read_tokens     *int
+	cache_creation_tokens    *int
+	addcache_creation_tokens *int
+	created_at               *time.Time
+	clearedFields            map[string]struct{}
+	done                     bool
+	oldValue                 func(context.Context) (*RequestMetric, error)
+	predicates               []predicate.RequestMetric
+}
+
+var _ ent.Mutation = (*RequestMetricMutation)(nil)
+
+// requestmetricOption allows management of the mutation configuration using functional options.
+type requestmetricOption func(*RequestMetricMutation)
+
+// newRequestMetricMutation creates new mutation for the RequestMetric entity.
+func newRequestMetricMutation(c config, op Op, opts ...requestmetricOption) *RequestMetricMutation {
+	m := &RequestMetricMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeRequestMetric,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withRequestMetricID sets the ID field of the mutation.
+func withRequestMetricID(id int64) requestmetricOption {
+	return func(m *RequestMetricMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *RequestMetric
+		)
+		m.oldValue = func(ctx context.Context) (*RequestMetric, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().RequestMetric.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withRequestMetric sets the old RequestMetric of the mutation.
+func withRequestMetric(node *RequestMetric) requestmetricOption {
+	return func(m *RequestMetricMutation) {
+		m.oldValue = func(context.Context) (*RequestMetric, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m RequestMetricMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m RequestMetricMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *RequestMetricMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *RequestMetricMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().RequestMetric.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetRequestID sets the "request_id" field.
+func (m *RequestMetricMutation) SetRequestID(s string) {
+	m.request_id = &s
+}
+
+// RequestID returns the value of the "request_id" field in the mutation.
+func (m *RequestMetricMutation) RequestID() (r string, exists bool) {
+	v := m.request_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestID returns the old "request_id" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldRequestID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestID: %w", err)
+	}
+	return oldValue.RequestID, nil
+}
+
+// ResetRequestID resets all changes to the "request_id" field.
+func (m *RequestMetricMutation) ResetRequestID() {
+	m.request_id = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *RequestMetricMutation) SetUserID(i int64) {
+	m.user_id = &i
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *RequestMetricMutation) UserID() (r int64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldUserID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds i to the "user_id" field.
+func (m *RequestMetricMutation) AddUserID(i int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += i
+	} else {
+		m.adduser_id = &i
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *RequestMetricMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *RequestMetricMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetAPIKeyID sets the "api_key_id" field.
+func (m *RequestMetricMutation) SetAPIKeyID(i int64) {
+	m.api_key_id = &i
+	m.addapi_key_id = nil
+}
+
+// APIKeyID returns the value of the "api_key_id" field in the mutation.
+func (m *RequestMetricMutation) APIKeyID() (r int64, exists bool) {
+	v := m.api_key_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAPIKeyID returns the old "api_key_id" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldAPIKeyID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAPIKeyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAPIKeyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAPIKeyID: %w", err)
+	}
+	return oldValue.APIKeyID, nil
+}
+
+// AddAPIKeyID adds i to the "api_key_id" field.
+func (m *RequestMetricMutation) AddAPIKeyID(i int64) {
+	if m.addapi_key_id != nil {
+		*m.addapi_key_id += i
+	} else {
+		m.addapi_key_id = &i
+	}
+}
+
+// AddedAPIKeyID returns the value that was added to the "api_key_id" field in this mutation.
+func (m *RequestMetricMutation) AddedAPIKeyID() (r int64, exists bool) {
+	v := m.addapi_key_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAPIKeyID resets all changes to the "api_key_id" field.
+func (m *RequestMetricMutation) ResetAPIKeyID() {
+	m.api_key_id = nil
+	m.addapi_key_id = nil
+}
+
+// SetGroupID sets the "group_id" field.
+func (m *RequestMetricMutation) SetGroupID(i int64) {
+	m.group_id = &i
+	m.addgroup_id = nil
+}
+
+// GroupID returns the value of the "group_id" field in the mutation.
+func (m *RequestMetricMutation) GroupID() (r int64, exists bool) {
+	v := m.group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupID returns the old "group_id" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldGroupID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupID: %w", err)
+	}
+	return oldValue.GroupID, nil
+}
+
+// AddGroupID adds i to the "group_id" field.
+func (m *RequestMetricMutation) AddGroupID(i int64) {
+	if m.addgroup_id != nil {
+		*m.addgroup_id += i
+	} else {
+		m.addgroup_id = &i
+	}
+}
+
+// AddedGroupID returns the value that was added to the "group_id" field in this mutation.
+func (m *RequestMetricMutation) AddedGroupID() (r int64, exists bool) {
+	v := m.addgroup_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGroupID resets all changes to the "group_id" field.
+func (m *RequestMetricMutation) ResetGroupID() {
+	m.group_id = nil
+	m.addgroup_id = nil
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (m *RequestMetricMutation) SetMerchantID(i int64) {
+	m.merchant_id = &i
+	m.addmerchant_id = nil
+}
+
+// MerchantID returns the value of the "merchant_id" field in the mutation.
+func (m *RequestMetricMutation) MerchantID() (r int64, exists bool) {
+	v := m.merchant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMerchantID returns the old "merchant_id" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldMerchantID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMerchantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMerchantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMerchantID: %w", err)
+	}
+	return oldValue.MerchantID, nil
+}
+
+// AddMerchantID adds i to the "merchant_id" field.
+func (m *RequestMetricMutation) AddMerchantID(i int64) {
+	if m.addmerchant_id != nil {
+		*m.addmerchant_id += i
+	} else {
+		m.addmerchant_id = &i
+	}
+}
+
+// AddedMerchantID returns the value that was added to the "merchant_id" field in this mutation.
+func (m *RequestMetricMutation) AddedMerchantID() (r int64, exists bool) {
+	v := m.addmerchant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (m *RequestMetricMutation) ClearMerchantID() {
+	m.merchant_id = nil
+	m.addmerchant_id = nil
+	m.clearedFields[requestmetric.FieldMerchantID] = struct{}{}
+}
+
+// MerchantIDCleared returns if the "merchant_id" field was cleared in this mutation.
+func (m *RequestMetricMutation) MerchantIDCleared() bool {
+	_, ok := m.clearedFields[requestmetric.FieldMerchantID]
+	return ok
+}
+
+// ResetMerchantID resets all changes to the "merchant_id" field.
+func (m *RequestMetricMutation) ResetMerchantID() {
+	m.merchant_id = nil
+	m.addmerchant_id = nil
+	delete(m.clearedFields, requestmetric.FieldMerchantID)
+}
+
+// SetModel sets the "model" field.
+func (m *RequestMetricMutation) SetModel(s string) {
+	m.model = &s
+}
+
+// Model returns the value of the "model" field in the mutation.
+func (m *RequestMetricMutation) Model() (r string, exists bool) {
+	v := m.model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModel returns the old "model" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModel: %w", err)
+	}
+	return oldValue.Model, nil
+}
+
+// ResetModel resets all changes to the "model" field.
+func (m *RequestMetricMutation) ResetModel() {
+	m.model = nil
+}
+
+// SetStatusCode sets the "status_code" field.
+func (m *RequestMetricMutation) SetStatusCode(i int) {
+	m.status_code = &i
+	m.addstatus_code = nil
+}
+
+// StatusCode returns the value of the "status_code" field in the mutation.
+func (m *RequestMetricMutation) StatusCode() (r int, exists bool) {
+	v := m.status_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatusCode returns the old "status_code" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldStatusCode(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatusCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatusCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatusCode: %w", err)
+	}
+	return oldValue.StatusCode, nil
+}
+
+// AddStatusCode adds i to the "status_code" field.
+func (m *RequestMetricMutation) AddStatusCode(i int) {
+	if m.addstatus_code != nil {
+		*m.addstatus_code += i
+	} else {
+		m.addstatus_code = &i
+	}
+}
+
+// AddedStatusCode returns the value that was added to the "status_code" field in this mutation.
+func (m *RequestMetricMutation) AddedStatusCode() (r int, exists bool) {
+	v := m.addstatus_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetStatusCode resets all changes to the "status_code" field.
+func (m *RequestMetricMutation) ResetStatusCode() {
+	m.status_code = nil
+	m.addstatus_code = nil
+}
+
+// SetUpstreamError sets the "upstream_error" field.
+func (m *RequestMetricMutation) SetUpstreamError(b bool) {
+	m.upstream_error = &b
+}
+
+// UpstreamError returns the value of the "upstream_error" field in the mutation.
+func (m *RequestMetricMutation) UpstreamError() (r bool, exists bool) {
+	v := m.upstream_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamError returns the old "upstream_error" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldUpstreamError(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamError: %w", err)
+	}
+	return oldValue.UpstreamError, nil
+}
+
+// ResetUpstreamError resets all changes to the "upstream_error" field.
+func (m *RequestMetricMutation) ResetUpstreamError() {
+	m.upstream_error = nil
+}
+
+// SetDurationMs sets the "duration_ms" field.
+func (m *RequestMetricMutation) SetDurationMs(i int) {
+	m.duration_ms = &i
+	m.addduration_ms = nil
+}
+
+// DurationMs returns the value of the "duration_ms" field in the mutation.
+func (m *RequestMetricMutation) DurationMs() (r int, exists bool) {
+	v := m.duration_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDurationMs returns the old "duration_ms" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldDurationMs(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDurationMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDurationMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDurationMs: %w", err)
+	}
+	return oldValue.DurationMs, nil
+}
+
+// AddDurationMs adds i to the "duration_ms" field.
+func (m *RequestMetricMutation) AddDurationMs(i int) {
+	if m.addduration_ms != nil {
+		*m.addduration_ms += i
+	} else {
+		m.addduration_ms = &i
+	}
+}
+
+// AddedDurationMs returns the value that was added to the "duration_ms" field in this mutation.
+func (m *RequestMetricMutation) AddedDurationMs() (r int, exists bool) {
+	v := m.addduration_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDurationMs resets all changes to the "duration_ms" field.
+func (m *RequestMetricMutation) ResetDurationMs() {
+	m.duration_ms = nil
+	m.addduration_ms = nil
+}
+
+// SetFirstTokenMs sets the "first_token_ms" field.
+func (m *RequestMetricMutation) SetFirstTokenMs(i int) {
+	m.first_token_ms = &i
+	m.addfirst_token_ms = nil
+}
+
+// FirstTokenMs returns the value of the "first_token_ms" field in the mutation.
+func (m *RequestMetricMutation) FirstTokenMs() (r int, exists bool) {
+	v := m.first_token_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFirstTokenMs returns the old "first_token_ms" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldFirstTokenMs(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFirstTokenMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFirstTokenMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFirstTokenMs: %w", err)
+	}
+	return oldValue.FirstTokenMs, nil
+}
+
+// AddFirstTokenMs adds i to the "first_token_ms" field.
+func (m *RequestMetricMutation) AddFirstTokenMs(i int) {
+	if m.addfirst_token_ms != nil {
+		*m.addfirst_token_ms += i
+	} else {
+		m.addfirst_token_ms = &i
+	}
+}
+
+// AddedFirstTokenMs returns the value that was added to the "first_token_ms" field in this mutation.
+func (m *RequestMetricMutation) AddedFirstTokenMs() (r int, exists bool) {
+	v := m.addfirst_token_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetFirstTokenMs resets all changes to the "first_token_ms" field.
+func (m *RequestMetricMutation) ResetFirstTokenMs() {
+	m.first_token_ms = nil
+	m.addfirst_token_ms = nil
+}
+
+// SetInputTokens sets the "input_tokens" field.
+func (m *RequestMetricMutation) SetInputTokens(i int) {
+	m.input_tokens = &i
+	m.addinput_tokens = nil
+}
+
+// InputTokens returns the value of the "input_tokens" field in the mutation.
+func (m *RequestMetricMutation) InputTokens() (r int, exists bool) {
+	v := m.input_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInputTokens returns the old "input_tokens" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldInputTokens(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInputTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInputTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInputTokens: %w", err)
+	}
+	return oldValue.InputTokens, nil
+}
+
+// AddInputTokens adds i to the "input_tokens" field.
+func (m *RequestMetricMutation) AddInputTokens(i int) {
+	if m.addinput_tokens != nil {
+		*m.addinput_tokens += i
+	} else {
+		m.addinput_tokens = &i
+	}
+}
+
+// AddedInputTokens returns the value that was added to the "input_tokens" field in this mutation.
+func (m *RequestMetricMutation) AddedInputTokens() (r int, exists bool) {
+	v := m.addinput_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetInputTokens resets all changes to the "input_tokens" field.
+func (m *RequestMetricMutation) ResetInputTokens() {
+	m.input_tokens = nil
+	m.addinput_tokens = nil
+}
+
+// SetOutputTokens sets the "output_tokens" field.
+func (m *RequestMetricMutation) SetOutputTokens(i int) {
+	m.output_tokens = &i
+	m.addoutput_tokens = nil
+}
+
+// OutputTokens returns the value of the "output_tokens" field in the mutation.
+func (m *RequestMetricMutation) OutputTokens() (r int, exists bool) {
+	v := m.output_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOutputTokens returns the old "output_tokens" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldOutputTokens(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOutputTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOutputTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOutputTokens: %w", err)
+	}
+	return oldValue.OutputTokens, nil
+}
+
+// AddOutputTokens adds i to the "output_tokens" field.
+func (m *RequestMetricMutation) AddOutputTokens(i int) {
+	if m.addoutput_tokens != nil {
+		*m.addoutput_tokens += i
+	} else {
+		m.addoutput_tokens = &i
+	}
+}
+
+// AddedOutputTokens returns the value that was added to the "output_tokens" field in this mutation.
+func (m *RequestMetricMutation) AddedOutputTokens() (r int, exists bool) {
+	v := m.addoutput_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetOutputTokens resets all changes to the "output_tokens" field.
+func (m *RequestMetricMutation) ResetOutputTokens() {
+	m.output_tokens = nil
+	m.addoutput_tokens = nil
+}
+
+// SetCacheReadTokens sets the "cache_read_tokens" field.
+func (m *RequestMetricMutation) SetCacheReadTokens(i int) {
+	m.cache_read_tokens = &i
+	m.addcache_read_tokens = nil
+}
+
+// CacheReadTokens returns the value of the "cache_read_tokens" field in the mutation.
+func (m *RequestMetricMutation) CacheReadTokens() (r int, exists bool) {
+	v := m.cache_read_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheReadTokens returns the old "cache_read_tokens" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldCacheReadTokens(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheReadTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheReadTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheReadTokens: %w", err)
+	}
+	return oldValue.CacheReadTokens, nil
+}
+
+// AddCacheReadTokens adds i to the "cache_read_tokens" field.
+func (m *RequestMetricMutation) AddCacheReadTokens(i int) {
+	if m.addcache_read_tokens != nil {
+		*m.addcache_read_tokens += i
+	} else {
+		m.addcache_read_tokens = &i
+	}
+}
+
+// AddedCacheReadTokens returns the value that was added to the "cache_read_tokens" field in this mutation.
+func (m *RequestMetricMutation) AddedCacheReadTokens() (r int, exists bool) {
+	v := m.addcache_read_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCacheReadTokens resets all changes to the "cache_read_tokens" field.
+func (m *RequestMetricMutation) ResetCacheReadTokens() {
+	m.cache_read_tokens = nil
+	m.addcache_read_tokens = nil
+}
+
+// SetCacheCreationTokens sets the "cache_creation_tokens" field.
+func (m *RequestMetricMutation) SetCacheCreationTokens(i int) {
+	m.cache_creation_tokens = &i
+	m.addcache_creation_tokens = nil
+}
+
+// CacheCreationTokens returns the value of the "cache_creation_tokens" field in the mutation.
+func (m *RequestMetricMutation) CacheCreationTokens() (r int, exists bool) {
+	v := m.cache_creation_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheCreationTokens returns the old "cache_creation_tokens" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldCacheCreationTokens(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheCreationTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheCreationTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheCreationTokens: %w", err)
+	}
+	return oldValue.CacheCreationTokens, nil
+}
+
+// AddCacheCreationTokens adds i to the "cache_creation_tokens" field.
+func (m *RequestMetricMutation) AddCacheCreationTokens(i int) {
+	if m.addcache_creation_tokens != nil {
+		*m.addcache_creation_tokens += i
+	} else {
+		m.addcache_creation_tokens = &i
+	}
+}
+
+// AddedCacheCreationTokens returns the value that was added to the "cache_creation_tokens" field in this mutation.
+func (m *RequestMetricMutation) AddedCacheCreationTokens() (r int, exists bool) {
+	v := m.addcache_creation_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCacheCreationTokens resets all changes to the "cache_creation_tokens" field.
+func (m *RequestMetricMutation) ResetCacheCreationTokens() {
+	m.cache_creation_tokens = nil
+	m.addcache_creation_tokens = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *RequestMetricMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *RequestMetricMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *RequestMetricMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the RequestMetricMutation builder.
+func (m *RequestMetricMutation) Where(ps ...predicate.RequestMetric) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the RequestMetricMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *RequestMetricMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.RequestMetric, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *RequestMetricMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *RequestMetricMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (RequestMetric).
+func (m *RequestMetricMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *RequestMetricMutation) Fields() []string {
+	fields := make([]string, 0, 15)
+	if m.request_id != nil {
+		fields = append(fields, requestmetric.FieldRequestID)
+	}
+	if m.user_id != nil {
+		fields = append(fields, requestmetric.FieldUserID)
+	}
+	if m.api_key_id != nil {
+		fields = append(fields, requestmetric.FieldAPIKeyID)
+	}
+	if m.group_id != nil {
+		fields = append(fields, requestmetric.FieldGroupID)
+	}
+	if m.merchant_id != nil {
+		fields = append(fields, requestmetric.FieldMerchantID)
+	}
+	if m.model != nil {
+		fields = append(fields, requestmetric.FieldModel)
+	}
+	if m.status_code != nil {
+		fields = append(fields, requestmetric.FieldStatusCode)
+	}
+	if m.upstream_error != nil {
+		fields = append(fields, requestmetric.FieldUpstreamError)
+	}
+	if m.duration_ms != nil {
+		fields = append(fields, requestmetric.FieldDurationMs)
+	}
+	if m.first_token_ms != nil {
+		fields = append(fields, requestmetric.FieldFirstTokenMs)
+	}
+	if m.input_tokens != nil {
+		fields = append(fields, requestmetric.FieldInputTokens)
+	}
+	if m.output_tokens != nil {
+		fields = append(fields, requestmetric.FieldOutputTokens)
+	}
+	if m.cache_read_tokens != nil {
+		fields = append(fields, requestmetric.FieldCacheReadTokens)
+	}
+	if m.cache_creation_tokens != nil {
+		fields = append(fields, requestmetric.FieldCacheCreationTokens)
+	}
+	if m.created_at != nil {
+		fields = append(fields, requestmetric.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *RequestMetricMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case requestmetric.FieldRequestID:
+		return m.RequestID()
+	case requestmetric.FieldUserID:
+		return m.UserID()
+	case requestmetric.FieldAPIKeyID:
+		return m.APIKeyID()
+	case requestmetric.FieldGroupID:
+		return m.GroupID()
+	case requestmetric.FieldMerchantID:
+		return m.MerchantID()
+	case requestmetric.FieldModel:
+		return m.Model()
+	case requestmetric.FieldStatusCode:
+		return m.StatusCode()
+	case requestmetric.FieldUpstreamError:
+		return m.UpstreamError()
+	case requestmetric.FieldDurationMs:
+		return m.DurationMs()
+	case requestmetric.FieldFirstTokenMs:
+		return m.FirstTokenMs()
+	case requestmetric.FieldInputTokens:
+		return m.InputTokens()
+	case requestmetric.FieldOutputTokens:
+		return m.OutputTokens()
+	case requestmetric.FieldCacheReadTokens:
+		return m.CacheReadTokens()
+	case requestmetric.FieldCacheCreationTokens:
+		return m.CacheCreationTokens()
+	case requestmetric.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *RequestMetricMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case requestmetric.FieldRequestID:
+		return m.OldRequestID(ctx)
+	case requestmetric.FieldUserID:
+		return m.OldUserID(ctx)
+	case requestmetric.FieldAPIKeyID:
+		return m.OldAPIKeyID(ctx)
+	case requestmetric.FieldGroupID:
+		return m.OldGroupID(ctx)
+	case requestmetric.FieldMerchantID:
+		return m.OldMerchantID(ctx)
+	case requestmetric.FieldModel:
+		return m.OldModel(ctx)
+	case requestmetric.FieldStatusCode:
+		return m.OldStatusCode(ctx)
+	case requestmetric.FieldUpstreamError:
+		return m.OldUpstreamError(ctx)
+	case requestmetric.FieldDurationMs:
+		return m.OldDurationMs(ctx)
+	case requestmetric.FieldFirstTokenMs:
+		return m.OldFirstTokenMs(ctx)
+	case requestmetric.FieldInputTokens:
+		return m.OldInputTokens(ctx)
+	case requestmetric.FieldOutputTokens:
+		return m.OldOutputTokens(ctx)
+	case requestmetric.FieldCacheReadTokens:
+		return m.OldCacheReadTokens(ctx)
+	case requestmetric.FieldCacheCreationTokens:
+		return m.OldCacheCreationTokens(ctx)
+	case requestmetric.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown RequestMetric field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *RequestMetricMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case requestmetric.FieldRequestID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestID(v)
+		return nil
+	case requestmetric.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case requestmetric.FieldAPIKeyID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAPIKeyID(v)
+		return nil
+	case requestmetric.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupID(v)
+		return nil
+	case requestmetric.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMerchantID(v)
+		return nil
+	case requestmetric.FieldModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModel(v)
+		return nil
+	case requestmetric.FieldStatusCode:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatusCode(v)
+		return nil
+	case requestmetric.FieldUpstreamError:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamError(v)
+		return nil
+	case requestmetric.FieldDurationMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDurationMs(v)
+		return nil
+	case requestmetric.FieldFirstTokenMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFirstTokenMs(v)
+		return nil
+	case requestmetric.FieldInputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInputTokens(v)
+		return nil
+	case requestmetric.FieldOutputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOutputTokens(v)
+		return nil
+	case requestmetric.FieldCacheReadTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheReadTokens(v)
+		return nil
+	case requestmetric.FieldCacheCreationTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheCreationTokens(v)
+		return nil
+	case requestmetric.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown RequestMetric field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *RequestMetricMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, requestmetric.FieldUserID)
+	}
+	if m.addapi_key_id != nil {
+		fields = append(fields, requestmetric.FieldAPIKeyID)
+	}
+	if m.addgroup_id != nil {
+		fields = append(fields, requestmetric.FieldGroupID)
+	}
+	if m.addmerchant_id != nil {
+		fields = append(fields, requestmetric.FieldMerchantID)
+	}
+	if m.addstatus_code != nil {
+		fields = append(fields, requestmetric.FieldStatusCode)
+	}
+	if m.addduration_ms != nil {
+		fields = append(fields, requestmetric.FieldDurationMs)
+	}
+	if m.addfirst_token_ms != nil {
+		fields = append(fields, requestmetric.FieldFirstTokenMs)
+	}
+	if m.addinput_tokens != nil {
+		fields = append(fields, requestmetric.FieldInputTokens)
+	}
+	if m.addoutput_tokens != nil {
+		fields = append(fields, requestmetric.FieldOutputTokens)
+	}
+	if m.addcache_read_tokens != nil {
+		fields = append(fields, requestmetric.FieldCacheReadTokens)
+	}
+	if m.addcache_creation_tokens != nil {
+		fields = append(fields, requestmetric.FieldCacheCreationTokens)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *RequestMetricMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case requestmetric.FieldUserID:
+		return m.AddedUserID()
+	case requestmetric.FieldAPIKeyID:
+		return m.AddedAPIKeyID()
+	case requestmetric.FieldGroupID:
+		return m.AddedGroupID()
+	case requestmetric.FieldMerchantID:
+		return m.AddedMerchantID()
+	case requestmetric.FieldStatusCode:
+		return m.AddedStatusCode()
+	case requestmetric.FieldDurationMs:
+		return m.AddedDurationMs()
+	case requestmetric.FieldFirstTokenMs:
+		return m.AddedFirstTokenMs()
+	case requestmetric.FieldInputTokens:
+		return m.AddedInputTokens()
+	case requestmetric.FieldOutputTokens:
+		return m.AddedOutputTokens()
+	case requestmetric.FieldCacheReadTokens:
+		return m.AddedCacheReadTokens()
+	case requestmetric.FieldCacheCreationTokens:
+		return m.AddedCacheCreationTokens()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *RequestMetricMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case requestmetric.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case requestmetric.FieldAPIKeyID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAPIKeyID(v)
+		return nil
+	case requestmetric.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGroupID(v)
+		return nil
+	case requestmetric.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMerchantID(v)
+		return nil
+	case requestmetric.FieldStatusCode:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddStatusCode(v)
+		return nil
+	case requestmetric.FieldDurationMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDurationMs(v)
+		return nil
+	case requestmetric.FieldFirstTokenMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddFirstTokenMs(v)
+		return nil
+	case requestmetric.FieldInputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddInputTokens(v)
+		return nil
+	case requestmetric.FieldOutputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddOutputTokens(v)
+		return nil
+	case requestmetric.FieldCacheReadTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCacheReadTokens(v)
+		return nil
+	case requestmetric.FieldCacheCreationTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCacheCreationTokens(v)
+		return nil
+	}
+	return fmt.Errorf("unknown RequestMetric numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *RequestMetricMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(requestmetric.FieldMerchantID) {
+		fields = append(fields, requestmetric.FieldMerchantID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *RequestMetricMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *RequestMetricMutation) ClearField(name string) error {
+	switch name {
+	case requestmetric.FieldMerchantID:
+		m.ClearMerchantID()
+		return nil
+	}
+	return fmt.Errorf("unknown RequestMetric nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *RequestMetricMutation) ResetField(name string) error {
+	switch name {
+	case requestmetric.FieldRequestID:
+		m.ResetRequestID()
+		return nil
+	case requestmetric.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case requestmetric.FieldAPIKeyID:
+		m.ResetAPIKeyID()
+		return nil
+	case requestmetric.FieldGroupID:
+		m.ResetGroupID()
+		return nil
+	case requestmetric.FieldMerchantID:
+		m.ResetMerchantID()
+		return nil
+	case requestmetric.FieldModel:
+		m.ResetModel()
+		return nil
+	case requestmetric.FieldStatusCode:
+		m.ResetStatusCode()
+		return nil
+	case requestmetric.FieldUpstreamError:
+		m.ResetUpstreamError()
+		return nil
+	case requestmetric.FieldDurationMs:
+		m.ResetDurationMs()
+		return nil
+	case requestmetric.FieldFirstTokenMs:
+		m.ResetFirstTokenMs()
+		return nil
+	case requestmetric.FieldInputTokens:
+		m.ResetInputTokens()
+		return nil
+	case requestmetric.FieldOutputTokens:
+		m.ResetOutputTokens()
+		return nil
+	case requestmetric.FieldCacheReadTokens:
+		m.ResetCacheReadTokens()
+		return nil
+	case requestmetric.FieldCacheCreationTokens:
+		m.ResetCacheCreationTokens()
+		return nil
+	case requestmetric.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown RequestMetric field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *RequestMetricMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *RequestMetricMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *RequestMetricMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *RequestMetricMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *RequestMetricMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *RequestMetricMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *RequestMetricMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown RequestMetric unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *RequestMetricMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown RequestMetric edge %s", name)
 }
 
 // SecuritySecretMutation represents an operation that mutates the SecuritySecret nodes in the graph.

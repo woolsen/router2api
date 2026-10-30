@@ -22,6 +22,8 @@ import (
 // POST /v1/chat/completions
 func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	streamStarted := false
+	metric := newRequestMetricRecorder()
+	defer metric.Finish(c)
 	defer h.recoverResponsesPanic(c, &streamStarted)
 
 	requestStart := time.Now()
@@ -37,6 +39,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
 		return
 	}
+	metric.Configure(h.metricsService, apiKey, subject.UserID)
 	reqLog := requestLogger(
 		c,
 		"handler.openai_gateway.chat_completions",
@@ -76,6 +79,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	metric.SetModel(reqModel)
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !openAICompatibleTextTargetAllowed(c, apiKey, reqModel) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
@@ -284,6 +288,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			if res == nil {
 				return
 			}
+			metric.ObserveOpenAIForward(res)
 			stampOpenAIRequestedReasoningEffort(res, c)
 			userAgent := c.GetHeader("User-Agent")
 			clientIP := ip.GetClientIP(c)

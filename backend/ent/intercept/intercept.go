@@ -37,6 +37,7 @@ import (
 	"github.com/woolsen/router2api/ent/promocodeusage"
 	"github.com/woolsen/router2api/ent/proxy"
 	"github.com/woolsen/router2api/ent/redeemcode"
+	"github.com/woolsen/router2api/ent/requestmetric"
 	"github.com/woolsen/router2api/ent/securitysecret"
 	"github.com/woolsen/router2api/ent/setting"
 	"github.com/woolsen/router2api/ent/settlement"
@@ -864,6 +865,33 @@ func (f TraverseRedeemCode) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.RedeemCodeQuery", q)
 }
 
+// The RequestMetricFunc type is an adapter to allow the use of ordinary function as a Querier.
+type RequestMetricFunc func(context.Context, *ent.RequestMetricQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f RequestMetricFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.RequestMetricQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.RequestMetricQuery", q)
+}
+
+// The TraverseRequestMetric type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseRequestMetric func(context.Context, *ent.RequestMetricQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseRequestMetric) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseRequestMetric) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.RequestMetricQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.RequestMetricQuery", q)
+}
+
 // The SecuritySecretFunc type is an adapter to allow the use of ordinary function as a Querier.
 type SecuritySecretFunc func(context.Context, *ent.SecuritySecretQuery) (ent.Value, error)
 
@@ -1274,6 +1302,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.ProxyQuery, predicate.Proxy, proxy.OrderOption]{typ: ent.TypeProxy, tq: q}, nil
 	case *ent.RedeemCodeQuery:
 		return &query[*ent.RedeemCodeQuery, predicate.RedeemCode, redeemcode.OrderOption]{typ: ent.TypeRedeemCode, tq: q}, nil
+	case *ent.RequestMetricQuery:
+		return &query[*ent.RequestMetricQuery, predicate.RequestMetric, requestmetric.OrderOption]{typ: ent.TypeRequestMetric, tq: q}, nil
 	case *ent.SecuritySecretQuery:
 		return &query[*ent.SecuritySecretQuery, predicate.SecuritySecret, securitysecret.OrderOption]{typ: ent.TypeSecuritySecret, tq: q}, nil
 	case *ent.SettingQuery:

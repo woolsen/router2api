@@ -102,6 +102,7 @@ func provideCleanup(
 	claudeCodeVersionSync *service.ClaudeCodeVersionSyncService,
 	proxyExpiry *service.ProxyExpiryService,
 	settlement *service.SettlementService,
+	metricsService *service.MetricsService,
 	subscriptionExpiry *service.SubscriptionExpiryService,
 	usageCleanup *service.UsageCleanupService,
 	idempotencyCleanup *service.IdempotencyCleanupService,
@@ -292,6 +293,12 @@ func provideCleanup(
 			}},
 			{"SettlementService", func() error {
 				settlement.Stop()
+				return nil
+			}},
+			{"MetricsService", func() error {
+				if metricsService != nil {
+					return metricsService.Close(ctx)
+				}
 				return nil
 			}},
 			{"SubscriptionExpiryService", func() error {

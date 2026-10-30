@@ -49,6 +49,7 @@ type OpenAIGatewayHandler struct {
 	imageLimiter               *imageConcurrencyLimiter
 	maxAccountSwitches         int
 	cfg                        *config.Config
+	metricsService             *service.MetricsService
 }
 
 type openAIWSTurnChannelMappingSnapshot struct {
@@ -389,6 +390,9 @@ func NewOpenAIGatewayHandler(
 func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// 局部兜底：确保该 handler 内部任何 panic 都不会击穿到进程级。
 	streamStarted := false
+	// metric 先注册 defer，保证它在 recover 之后执行，能观察到 panic 恢复写出的状态码。
+	metric := newRequestMetricRecorder()
+	defer metric.Finish(c)
 	defer h.recoverResponsesPanic(c, &streamStarted)
 	compactStartedAt := time.Now()
 	defer h.logOpenAIRemoteCompactOutcome(c, compactStartedAt)
@@ -408,6 +412,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
 		return
 	}
+	metric.Configure(h.metricsService, apiKey, subject.UserID)
 	reqLog := requestLogger(
 		c,
 		"handler.openai_gateway.responses",
@@ -469,6 +474,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	metric.SetModel(reqModel)
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !openAICompatibleTextTargetAllowed(c, apiKey, reqModel) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
@@ -818,6 +824,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			if res == nil {
 				return
 			}
+			metric.ObserveOpenAIForward(res)
 			stampOpenAIRequestedReasoningEffort(res, c)
 			userAgent := c.GetHeader("User-Agent")
 			clientIP := ip.GetClientIP(c)
@@ -1152,6 +1159,8 @@ func (h *OpenAIGatewayHandler) logOpenAIRemoteCompactOutcome(c *gin.Context, sta
 // POST /v1/messages (when group platform is OpenAI)
 func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	streamStarted := false
+	metric := newRequestMetricRecorder()
+	defer metric.Finish(c)
 	defer h.recoverAnthropicMessagesPanic(c, &streamStarted)
 
 	requestStart := time.Now()
@@ -1167,6 +1176,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		h.anthropicErrorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
 		return
 	}
+	metric.Configure(h.metricsService, apiKey, subject.UserID)
 	reqLog := requestLogger(
 		c,
 		"handler.openai_gateway.messages",
@@ -1212,6 +1222,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	metric.SetModel(reqModel)
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !openAICompatibleTextTargetAllowed(c, apiKey, reqModel) {
 		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
@@ -1412,6 +1423,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			if res == nil {
 				return
 			}
+			metric.ObserveOpenAIForward(res)
 			stampOpenAIRequestedReasoningEffort(res, c)
 			userAgent := c.GetHeader("User-Agent")
 			clientIP := ip.GetClientIP(c)

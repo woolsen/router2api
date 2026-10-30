@@ -40,6 +40,7 @@ import (
 	"github.com/woolsen/router2api/ent/promocodeusage"
 	"github.com/woolsen/router2api/ent/proxy"
 	"github.com/woolsen/router2api/ent/redeemcode"
+	"github.com/woolsen/router2api/ent/requestmetric"
 	"github.com/woolsen/router2api/ent/securitysecret"
 	"github.com/woolsen/router2api/ent/setting"
 	"github.com/woolsen/router2api/ent/settlement"
@@ -141,6 +142,7 @@ func checkColumn(t, c string) error {
 			promocodeusage.Table:                promocodeusage.ValidColumn,
 			proxy.Table:                         proxy.ValidColumn,
 			redeemcode.Table:                    redeemcode.ValidColumn,
+			requestmetric.Table:                 requestmetric.ValidColumn,
 			securitysecret.Table:                securitysecret.ValidColumn,
 			setting.Table:                       setting.ValidColumn,
 			settlement.Table:                    settlement.ValidColumn,

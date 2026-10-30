@@ -60,6 +60,7 @@ type GatewayHandler struct {
 	maxAccountSwitchesGemini   int
 	cfg                        *config.Config
 	settingService             *service.SettingService
+	metricsService             *service.MetricsService
 }
 
 // NewGatewayHandler creates a new GatewayHandler
@@ -123,6 +124,9 @@ func NewGatewayHandler(
 // Messages handles Claude API compatible messages endpoint
 // POST /v1/messages
 func (h *GatewayHandler) Messages(c *gin.Context) {
+	metric := newRequestMetricRecorder()
+	defer metric.Finish(c)
+
 	// 从context获取apiKey和user（ApiKeyAuth中间件已设置）
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok {
@@ -135,6 +139,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
 		return
 	}
+	metric.Configure(h.metricsService, apiKey, subject.UserID)
 	reqLog := requestLogger(
 		c,
 		"handler.gateway.messages",
@@ -188,6 +193,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		reqStream = parsedReq.Stream
 	}
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	metric.SetModel(reqModel)
 
 	// 解析渠道级模型映射
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
@@ -599,6 +605,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			forceCacheBilling := fs.ForceCacheBilling
 			quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 			sessionID := service.ExtractClientSessionID(c)
+			metric.ObserveForward(result)
 			h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 					Result:             result,
@@ -936,6 +943,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			// 提交 usage 记录。成功路径与"流中断但 Forward 已观测到 usage 的部分结果"
 			// 错误路径共用：后者若不入账，上游已计量的请求会完全漏记漏计费（#5148）。
 			submitForwardUsage := func(result *service.ForwardResult) {
+				metric.ObserveForward(result)
 				// 捕获请求信息（用于异步记录，避免在 goroutine 中访问 gin.Context）
 				userAgent := c.GetHeader("User-Agent")
 				clientIP := ip.GetClientIP(c)
@@ -1043,6 +1051,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						currentSubscription = nil
 						fallbackUsed = true
 						retryWithFallback = true
+						metric.SetGroup(currentAPIKey)
 						// 原分组账号已确定性失败（prompt too long），先释放其会话注册再走兜底分组
 						for _, acc := range sessionSlotAccounts {
 							h.gatewayService.ReleaseAccountSession(context.Background(), acc, sessionKey)

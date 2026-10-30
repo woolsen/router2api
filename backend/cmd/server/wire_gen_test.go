@@ -72,6 +72,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		claudeCodeVersionSyncSvc,
 		proxyExpirySvc,
 		nil, // settlement
+		nil, // metricsService
 		subscriptionExpirySvc,
 		&service.UsageCleanupService{},
 		idempotencyCleanupSvc,

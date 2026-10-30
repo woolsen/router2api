@@ -22,6 +22,8 @@ import (
 // forwards to Anthropic upstream, and converts responses back to Chat Completions format.
 func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 	streamStarted := false
+	metric := newRequestMetricRecorder()
+	defer metric.Finish(c)
 
 	requestStart := time.Now()
 
@@ -36,6 +38,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		h.chatCompletionsErrorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
 		return
 	}
+	metric.Configure(h.metricsService, apiKey, subject.UserID)
 	reqLog := requestLogger(
 		c,
 		"handler.gateway.chat_completions",
@@ -95,6 +98,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	metric.SetModel(reqModel)
 
 	setOpsRequestContext(c, reqModel, reqStream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
@@ -324,6 +328,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		// 提交 usage 记录。成功路径与"流中断但 Forward 已观测到 usage 的部分结果"
 		// 错误路径共用；failover 错误恒定 result=nil，不会重复计费。
 		submitForwardUsage := func(result *service.ForwardResult) {
+			metric.ObserveForward(result)
 			userAgent := c.GetHeader("User-Agent")
 			clientIP := ip.GetClientIP(c)
 			requestPayloadHash := service.HashUsageRequestPayload(body)

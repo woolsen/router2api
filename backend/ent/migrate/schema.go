@@ -1552,6 +1552,48 @@ var (
 			},
 		},
 	}
+	// RequestMetricsColumns holds the columns for the "request_metrics" table.
+	RequestMetricsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "request_id", Type: field.TypeString, Size: 64},
+		{Name: "user_id", Type: field.TypeInt64},
+		{Name: "api_key_id", Type: field.TypeInt64, Default: 0},
+		{Name: "group_id", Type: field.TypeInt64},
+		{Name: "merchant_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "model", Type: field.TypeString, Size: 128, Default: ""},
+		{Name: "status_code", Type: field.TypeInt, Default: 0},
+		{Name: "upstream_error", Type: field.TypeBool, Default: false},
+		{Name: "duration_ms", Type: field.TypeInt, Default: 0},
+		{Name: "first_token_ms", Type: field.TypeInt, Default: 0},
+		{Name: "input_tokens", Type: field.TypeInt, Default: 0},
+		{Name: "output_tokens", Type: field.TypeInt, Default: 0},
+		{Name: "cache_read_tokens", Type: field.TypeInt, Default: 0},
+		{Name: "cache_creation_tokens", Type: field.TypeInt, Default: 0},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// RequestMetricsTable holds the schema information for the "request_metrics" table.
+	RequestMetricsTable = &schema.Table{
+		Name:       "request_metrics",
+		Columns:    RequestMetricsColumns,
+		PrimaryKey: []*schema.Column{RequestMetricsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "requestmetric_group_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{RequestMetricsColumns[4], RequestMetricsColumns[15]},
+				Annotation: &entsql.IndexAnnotation{
+					DescColumns: map[string]bool{
+						RequestMetricsColumns[15].Name: true,
+					},
+				},
+			},
+			{
+				Name:    "requestmetric_request_id",
+				Unique:  false,
+				Columns: []*schema.Column{RequestMetricsColumns[1]},
+			},
+		},
+	}
 	// SecuritySecretsColumns holds the columns for the "security_secrets" table.
 	SecuritySecretsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2193,6 +2235,7 @@ var (
 		PromoCodeUsagesTable,
 		ProxiesTable,
 		RedeemCodesTable,
+		RequestMetricsTable,
 		SecuritySecretsTable,
 		SettingsTable,
 		SettlementsTable,
@@ -2316,6 +2359,9 @@ func init() {
 	RedeemCodesTable.ForeignKeys[1].RefTable = UsersTable
 	RedeemCodesTable.Annotation = &entsql.Annotation{
 		Table: "redeem_codes",
+	}
+	RequestMetricsTable.Annotation = &entsql.Annotation{
+		Table: "request_metrics",
 	}
 	SecuritySecretsTable.Annotation = &entsql.Annotation{
 		Table: "security_secrets",

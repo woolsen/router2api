@@ -442,6 +442,14 @@ func ProvideSettlementService(settlementRepo SettlementRepository, cfg *config.C
 	return svc
 }
 
+// ProvideMetricsService 创建并启动请求级指标采集服务。
+// 队列有界，落库异步；网关热路径只做非阻塞投递。
+func ProvideMetricsService(metricRepo RequestMetricRepository) *MetricsService {
+	svc := NewMetricsService(metricRepo, MetricsOptions{})
+	svc.Start()
+	return svc
+}
+
 // ProvideSubscriptionExpiryService creates and starts SubscriptionExpiryService.
 func ProvideSubscriptionExpiryService(userSubRepo UserSubscriptionRepository, settingRepo SettingRepository, notificationEmailService *NotificationEmailService, lockCache LeaderLockCache, db *sql.DB) *SubscriptionExpiryService {
 	svc := NewSubscriptionExpiryService(userSubRepo, time.Minute)
@@ -961,6 +969,7 @@ var ProviderSet = wire.NewSet(
 	ProvideClaudeCodeVersionSyncService,
 	ProvideProxyExpiryService,
 	ProvideSettlementService,
+	ProvideMetricsService,
 	ProvideSubscriptionExpiryService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,

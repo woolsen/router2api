@@ -43,6 +43,7 @@ import (
 	"github.com/woolsen/router2api/ent/promocodeusage"
 	"github.com/woolsen/router2api/ent/proxy"
 	"github.com/woolsen/router2api/ent/redeemcode"
+	"github.com/woolsen/router2api/ent/requestmetric"
 	"github.com/woolsen/router2api/ent/securitysecret"
 	"github.com/woolsen/router2api/ent/setting"
 	"github.com/woolsen/router2api/ent/settlement"
@@ -121,6 +122,8 @@ type Client struct {
 	Proxy *ProxyClient
 	// RedeemCode is the client for interacting with the RedeemCode builders.
 	RedeemCode *RedeemCodeClient
+	// RequestMetric is the client for interacting with the RequestMetric builders.
+	RequestMetric *RequestMetricClient
 	// SecuritySecret is the client for interacting with the SecuritySecret builders.
 	SecuritySecret *SecuritySecretClient
 	// Setting is the client for interacting with the Setting builders.
@@ -186,6 +189,7 @@ func (c *Client) init() {
 	c.PromoCodeUsage = NewPromoCodeUsageClient(c.config)
 	c.Proxy = NewProxyClient(c.config)
 	c.RedeemCode = NewRedeemCodeClient(c.config)
+	c.RequestMetric = NewRequestMetricClient(c.config)
 	c.SecuritySecret = NewSecuritySecretClient(c.config)
 	c.Setting = NewSettingClient(c.config)
 	c.Settlement = NewSettlementClient(c.config)
@@ -319,6 +323,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		PromoCodeUsage:                NewPromoCodeUsageClient(cfg),
 		Proxy:                         NewProxyClient(cfg),
 		RedeemCode:                    NewRedeemCodeClient(cfg),
+		RequestMetric:                 NewRequestMetricClient(cfg),
 		SecuritySecret:                NewSecuritySecretClient(cfg),
 		Setting:                       NewSettingClient(cfg),
 		Settlement:                    NewSettlementClient(cfg),
@@ -379,6 +384,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		PromoCodeUsage:                NewPromoCodeUsageClient(cfg),
 		Proxy:                         NewProxyClient(cfg),
 		RedeemCode:                    NewRedeemCodeClient(cfg),
+		RequestMetric:                 NewRequestMetricClient(cfg),
 		SecuritySecret:                NewSecuritySecretClient(cfg),
 		Setting:                       NewSettingClient(cfg),
 		Settlement:                    NewSettlementClient(cfg),
@@ -428,10 +434,10 @@ func (c *Client) Use(hooks ...Hook) {
 		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
 		c.IdentityAdoptionDecision, c.Merchant, c.PaymentAuditLog, c.PaymentOrder,
 		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.Settlement,
-		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
-		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription,
+		c.Proxy, c.RedeemCode, c.RequestMetric, c.SecuritySecret, c.Setting,
+		c.Settlement, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
+		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
+		c.UserAttributeValue, c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -448,10 +454,10 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
 		c.IdentityAdoptionDecision, c.Merchant, c.PaymentAuditLog, c.PaymentOrder,
 		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.Settlement,
-		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
-		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription,
+		c.Proxy, c.RedeemCode, c.RequestMetric, c.SecuritySecret, c.Setting,
+		c.Settlement, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
+		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
+		c.UserAttributeValue, c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -516,6 +522,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Proxy.mutate(ctx, m)
 	case *RedeemCodeMutation:
 		return c.RedeemCode.mutate(ctx, m)
+	case *RequestMetricMutation:
+		return c.RequestMetric.mutate(ctx, m)
 	case *SecuritySecretMutation:
 		return c.SecuritySecret.mutate(ctx, m)
 	case *SettingMutation:
@@ -4970,6 +4978,139 @@ func (c *RedeemCodeClient) mutate(ctx context.Context, m *RedeemCodeMutation) (V
 	}
 }
 
+// RequestMetricClient is a client for the RequestMetric schema.
+type RequestMetricClient struct {
+	config
+}
+
+// NewRequestMetricClient returns a client for the RequestMetric from the given config.
+func NewRequestMetricClient(c config) *RequestMetricClient {
+	return &RequestMetricClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `requestmetric.Hooks(f(g(h())))`.
+func (c *RequestMetricClient) Use(hooks ...Hook) {
+	c.hooks.RequestMetric = append(c.hooks.RequestMetric, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `requestmetric.Intercept(f(g(h())))`.
+func (c *RequestMetricClient) Intercept(interceptors ...Interceptor) {
+	c.inters.RequestMetric = append(c.inters.RequestMetric, interceptors...)
+}
+
+// Create returns a builder for creating a RequestMetric entity.
+func (c *RequestMetricClient) Create() *RequestMetricCreate {
+	mutation := newRequestMetricMutation(c.config, OpCreate)
+	return &RequestMetricCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of RequestMetric entities.
+func (c *RequestMetricClient) CreateBulk(builders ...*RequestMetricCreate) *RequestMetricCreateBulk {
+	return &RequestMetricCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *RequestMetricClient) MapCreateBulk(slice any, setFunc func(*RequestMetricCreate, int)) *RequestMetricCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &RequestMetricCreateBulk{err: fmt.Errorf("calling to RequestMetricClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*RequestMetricCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &RequestMetricCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for RequestMetric.
+func (c *RequestMetricClient) Update() *RequestMetricUpdate {
+	mutation := newRequestMetricMutation(c.config, OpUpdate)
+	return &RequestMetricUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *RequestMetricClient) UpdateOne(_m *RequestMetric) *RequestMetricUpdateOne {
+	mutation := newRequestMetricMutation(c.config, OpUpdateOne, withRequestMetric(_m))
+	return &RequestMetricUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *RequestMetricClient) UpdateOneID(id int64) *RequestMetricUpdateOne {
+	mutation := newRequestMetricMutation(c.config, OpUpdateOne, withRequestMetricID(id))
+	return &RequestMetricUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for RequestMetric.
+func (c *RequestMetricClient) Delete() *RequestMetricDelete {
+	mutation := newRequestMetricMutation(c.config, OpDelete)
+	return &RequestMetricDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *RequestMetricClient) DeleteOne(_m *RequestMetric) *RequestMetricDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *RequestMetricClient) DeleteOneID(id int64) *RequestMetricDeleteOne {
+	builder := c.Delete().Where(requestmetric.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &RequestMetricDeleteOne{builder}
+}
+
+// Query returns a query builder for RequestMetric.
+func (c *RequestMetricClient) Query() *RequestMetricQuery {
+	return &RequestMetricQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeRequestMetric},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a RequestMetric entity by its id.
+func (c *RequestMetricClient) Get(ctx context.Context, id int64) (*RequestMetric, error) {
+	return c.Query().Where(requestmetric.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *RequestMetricClient) GetX(ctx context.Context, id int64) *RequestMetric {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *RequestMetricClient) Hooks() []Hook {
+	return c.hooks.RequestMetric
+}
+
+// Interceptors returns the client interceptors.
+func (c *RequestMetricClient) Interceptors() []Interceptor {
+	return c.inters.RequestMetric
+}
+
+func (c *RequestMetricClient) mutate(ctx context.Context, m *RequestMetricMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&RequestMetricCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&RequestMetricUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&RequestMetricUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&RequestMetricDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown RequestMetric mutation op: %q", m.Op())
+	}
+}
+
 // SecuritySecretClient is a client for the SecuritySecret schema.
 type SecuritySecretClient struct {
 	config
@@ -7131,9 +7272,9 @@ type (
 		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
 		Group, IdempotencyRecord, IdentityAdoptionDecision, Merchant, PaymentAuditLog,
 		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, Settlement,
-		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
-		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		PromoCodeUsage, Proxy, RedeemCode, RequestMetric, SecuritySecret, Setting,
+		Settlement, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
+		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
 		UserPlatformQuota, UserSubscription []ent.Hook
 	}
 	inters struct {
@@ -7143,9 +7284,9 @@ type (
 		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
 		Group, IdempotencyRecord, IdentityAdoptionDecision, Merchant, PaymentAuditLog,
 		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, Settlement,
-		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
-		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		PromoCodeUsage, Proxy, RedeemCode, RequestMetric, SecuritySecret, Setting,
+		Settlement, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
+		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
 		UserPlatformQuota, UserSubscription []ent.Interceptor
 	}
 )
