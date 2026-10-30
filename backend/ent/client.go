@@ -30,6 +30,7 @@ import (
 	"github.com/woolsen/router2api/ent/channelmonitorhistory"
 	"github.com/woolsen/router2api/ent/channelmonitorrequesttemplate"
 	"github.com/woolsen/router2api/ent/compositemodelroute"
+	"github.com/woolsen/router2api/ent/dispute"
 	"github.com/woolsen/router2api/ent/errorpassthroughrule"
 	"github.com/woolsen/router2api/ent/group"
 	"github.com/woolsen/router2api/ent/groupmetric"
@@ -98,6 +99,8 @@ type Client struct {
 	ChannelMonitorRequestTemplate *ChannelMonitorRequestTemplateClient
 	// CompositeModelRoute is the client for interacting with the CompositeModelRoute builders.
 	CompositeModelRoute *CompositeModelRouteClient
+	// Dispute is the client for interacting with the Dispute builders.
+	Dispute *DisputeClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
@@ -182,6 +185,7 @@ func (c *Client) init() {
 	c.ChannelMonitorHistory = NewChannelMonitorHistoryClient(c.config)
 	c.ChannelMonitorRequestTemplate = NewChannelMonitorRequestTemplateClient(c.config)
 	c.CompositeModelRoute = NewCompositeModelRouteClient(c.config)
+	c.Dispute = NewDisputeClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
 	c.Group = NewGroupClient(c.config)
 	c.GroupMetric = NewGroupMetricClient(c.config)
@@ -318,6 +322,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
 		CompositeModelRoute:           NewCompositeModelRouteClient(cfg),
+		Dispute:                       NewDisputeClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
 		GroupMetric:                   NewGroupMetricClient(cfg),
@@ -381,6 +386,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
 		CompositeModelRoute:           NewCompositeModelRouteClient(cfg),
+		Dispute:                       NewDisputeClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
 		GroupMetric:                   NewGroupMetricClient(cfg),
@@ -443,14 +449,14 @@ func (c *Client) Use(hooks ...Hook) {
 		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
 		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.GroupMetric,
-		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.RequestMetric, c.SecuritySecret,
-		c.Setting, c.Settlement, c.SubscriptionPlan, c.TLSFingerprintProfile,
-		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
-		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
-		c.UserSubscription, c.Withdrawal,
+		c.CompositeModelRoute, c.Dispute, c.ErrorPassthroughRule, c.Group,
+		c.GroupMetric, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant,
+		c.PaymentAuditLog, c.PaymentOrder, c.PaymentProviderInstance,
+		c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
+		c.RequestMetric, c.SecuritySecret, c.Setting, c.Settlement, c.SubscriptionPlan,
+		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
+		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserPlatformQuota, c.UserSubscription, c.Withdrawal,
 	} {
 		n.Use(hooks...)
 	}
@@ -464,14 +470,14 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
 		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.GroupMetric,
-		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.RequestMetric, c.SecuritySecret,
-		c.Setting, c.Settlement, c.SubscriptionPlan, c.TLSFingerprintProfile,
-		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
-		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
-		c.UserSubscription, c.Withdrawal,
+		c.CompositeModelRoute, c.Dispute, c.ErrorPassthroughRule, c.Group,
+		c.GroupMetric, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant,
+		c.PaymentAuditLog, c.PaymentOrder, c.PaymentProviderInstance,
+		c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
+		c.RequestMetric, c.SecuritySecret, c.Setting, c.Settlement, c.SubscriptionPlan,
+		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
+		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserPlatformQuota, c.UserSubscription, c.Withdrawal,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -510,6 +516,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ChannelMonitorRequestTemplate.mutate(ctx, m)
 	case *CompositeModelRouteMutation:
 		return c.CompositeModelRoute.mutate(ctx, m)
+	case *DisputeMutation:
+		return c.Dispute.mutate(ctx, m)
 	case *ErrorPassthroughRuleMutation:
 		return c.ErrorPassthroughRule.mutate(ctx, m)
 	case *GroupMutation:
@@ -2922,6 +2930,139 @@ func (c *CompositeModelRouteClient) mutate(ctx context.Context, m *CompositeMode
 		return (&CompositeModelRouteDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown CompositeModelRoute mutation op: %q", m.Op())
+	}
+}
+
+// DisputeClient is a client for the Dispute schema.
+type DisputeClient struct {
+	config
+}
+
+// NewDisputeClient returns a client for the Dispute from the given config.
+func NewDisputeClient(c config) *DisputeClient {
+	return &DisputeClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `dispute.Hooks(f(g(h())))`.
+func (c *DisputeClient) Use(hooks ...Hook) {
+	c.hooks.Dispute = append(c.hooks.Dispute, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `dispute.Intercept(f(g(h())))`.
+func (c *DisputeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Dispute = append(c.inters.Dispute, interceptors...)
+}
+
+// Create returns a builder for creating a Dispute entity.
+func (c *DisputeClient) Create() *DisputeCreate {
+	mutation := newDisputeMutation(c.config, OpCreate)
+	return &DisputeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Dispute entities.
+func (c *DisputeClient) CreateBulk(builders ...*DisputeCreate) *DisputeCreateBulk {
+	return &DisputeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DisputeClient) MapCreateBulk(slice any, setFunc func(*DisputeCreate, int)) *DisputeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DisputeCreateBulk{err: fmt.Errorf("calling to DisputeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DisputeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &DisputeCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Dispute.
+func (c *DisputeClient) Update() *DisputeUpdate {
+	mutation := newDisputeMutation(c.config, OpUpdate)
+	return &DisputeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *DisputeClient) UpdateOne(_m *Dispute) *DisputeUpdateOne {
+	mutation := newDisputeMutation(c.config, OpUpdateOne, withDispute(_m))
+	return &DisputeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *DisputeClient) UpdateOneID(id int64) *DisputeUpdateOne {
+	mutation := newDisputeMutation(c.config, OpUpdateOne, withDisputeID(id))
+	return &DisputeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Dispute.
+func (c *DisputeClient) Delete() *DisputeDelete {
+	mutation := newDisputeMutation(c.config, OpDelete)
+	return &DisputeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *DisputeClient) DeleteOne(_m *Dispute) *DisputeDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *DisputeClient) DeleteOneID(id int64) *DisputeDeleteOne {
+	builder := c.Delete().Where(dispute.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &DisputeDeleteOne{builder}
+}
+
+// Query returns a query builder for Dispute.
+func (c *DisputeClient) Query() *DisputeQuery {
+	return &DisputeQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeDispute},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Dispute entity by its id.
+func (c *DisputeClient) Get(ctx context.Context, id int64) (*Dispute, error) {
+	return c.Query().Where(dispute.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *DisputeClient) GetX(ctx context.Context, id int64) *Dispute {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *DisputeClient) Hooks() []Hook {
+	return c.hooks.Dispute
+}
+
+// Interceptors returns the client interceptors.
+func (c *DisputeClient) Interceptors() []Interceptor {
+	return c.inters.Dispute
+}
+
+func (c *DisputeClient) mutate(ctx context.Context, m *DisputeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DisputeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DisputeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DisputeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DisputeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Dispute mutation op: %q", m.Op())
 	}
 }
 
@@ -7553,24 +7694,26 @@ type (
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
-		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
-		Group, GroupMetric, IdempotencyRecord, IdentityAdoptionDecision, Merchant,
-		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
-		PromoCode, PromoCodeUsage, Proxy, RedeemCode, RequestMetric, SecuritySecret,
-		Setting, Settlement, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
-		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		ChannelMonitorRequestTemplate, CompositeModelRoute, Dispute,
+		ErrorPassthroughRule, Group, GroupMetric, IdempotencyRecord,
+		IdentityAdoptionDecision, Merchant, PaymentAuditLog, PaymentOrder,
+		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
+		RedeemCode, RequestMetric, SecuritySecret, Setting, Settlement,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
 		UserPlatformQuota, UserSubscription, Withdrawal []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
-		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
-		Group, GroupMetric, IdempotencyRecord, IdentityAdoptionDecision, Merchant,
-		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
-		PromoCode, PromoCodeUsage, Proxy, RedeemCode, RequestMetric, SecuritySecret,
-		Setting, Settlement, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
-		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		ChannelMonitorRequestTemplate, CompositeModelRoute, Dispute,
+		ErrorPassthroughRule, Group, GroupMetric, IdempotencyRecord,
+		IdentityAdoptionDecision, Merchant, PaymentAuditLog, PaymentOrder,
+		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
+		RedeemCode, RequestMetric, SecuritySecret, Setting, Settlement,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
 		UserPlatformQuota, UserSubscription, Withdrawal []ent.Interceptor
 	}
 )

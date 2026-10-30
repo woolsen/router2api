@@ -27,6 +27,7 @@ import (
 	"github.com/woolsen/router2api/ent/channelmonitorhistory"
 	"github.com/woolsen/router2api/ent/channelmonitorrequesttemplate"
 	"github.com/woolsen/router2api/ent/compositemodelroute"
+	"github.com/woolsen/router2api/ent/dispute"
 	"github.com/woolsen/router2api/ent/errorpassthroughrule"
 	"github.com/woolsen/router2api/ent/group"
 	"github.com/woolsen/router2api/ent/groupmetric"
@@ -84,6 +85,7 @@ const (
 	TypeChannelMonitorHistory         = "ChannelMonitorHistory"
 	TypeChannelMonitorRequestTemplate = "ChannelMonitorRequestTemplate"
 	TypeCompositeModelRoute           = "CompositeModelRoute"
+	TypeDispute                       = "Dispute"
 	TypeErrorPassthroughRule          = "ErrorPassthroughRule"
 	TypeGroup                         = "Group"
 	TypeGroupMetric                   = "GroupMetric"
@@ -20870,6 +20872,1194 @@ func (m *CompositeModelRouteMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown CompositeModelRoute edge %s", name)
+}
+
+// DisputeMutation represents an operation that mutates the Dispute nodes in the graph.
+type DisputeMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *int64
+	owner_type       *string
+	owner_id         *int64
+	addowner_id      *int64
+	target_type      *string
+	target_id        *int64
+	addtarget_id     *int64
+	amount           *float64
+	addamount        *float64
+	reason           *string
+	status           *string
+	decision         *string
+	adjust_amount    *float64
+	addadjust_amount *float64
+	note             *string
+	resolved_by      *string
+	created_at       *time.Time
+	resolved_at      *time.Time
+	clearedFields    map[string]struct{}
+	done             bool
+	oldValue         func(context.Context) (*Dispute, error)
+	predicates       []predicate.Dispute
+}
+
+var _ ent.Mutation = (*DisputeMutation)(nil)
+
+// disputeOption allows management of the mutation configuration using functional options.
+type disputeOption func(*DisputeMutation)
+
+// newDisputeMutation creates new mutation for the Dispute entity.
+func newDisputeMutation(c config, op Op, opts ...disputeOption) *DisputeMutation {
+	m := &DisputeMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeDispute,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withDisputeID sets the ID field of the mutation.
+func withDisputeID(id int64) disputeOption {
+	return func(m *DisputeMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Dispute
+		)
+		m.oldValue = func(ctx context.Context) (*Dispute, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Dispute.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withDispute sets the old Dispute of the mutation.
+func withDispute(node *Dispute) disputeOption {
+	return func(m *DisputeMutation) {
+		m.oldValue = func(context.Context) (*Dispute, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m DisputeMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m DisputeMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *DisputeMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *DisputeMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Dispute.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetOwnerType sets the "owner_type" field.
+func (m *DisputeMutation) SetOwnerType(s string) {
+	m.owner_type = &s
+}
+
+// OwnerType returns the value of the "owner_type" field in the mutation.
+func (m *DisputeMutation) OwnerType() (r string, exists bool) {
+	v := m.owner_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOwnerType returns the old "owner_type" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldOwnerType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOwnerType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOwnerType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOwnerType: %w", err)
+	}
+	return oldValue.OwnerType, nil
+}
+
+// ResetOwnerType resets all changes to the "owner_type" field.
+func (m *DisputeMutation) ResetOwnerType() {
+	m.owner_type = nil
+}
+
+// SetOwnerID sets the "owner_id" field.
+func (m *DisputeMutation) SetOwnerID(i int64) {
+	m.owner_id = &i
+	m.addowner_id = nil
+}
+
+// OwnerID returns the value of the "owner_id" field in the mutation.
+func (m *DisputeMutation) OwnerID() (r int64, exists bool) {
+	v := m.owner_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOwnerID returns the old "owner_id" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldOwnerID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOwnerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOwnerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOwnerID: %w", err)
+	}
+	return oldValue.OwnerID, nil
+}
+
+// AddOwnerID adds i to the "owner_id" field.
+func (m *DisputeMutation) AddOwnerID(i int64) {
+	if m.addowner_id != nil {
+		*m.addowner_id += i
+	} else {
+		m.addowner_id = &i
+	}
+}
+
+// AddedOwnerID returns the value that was added to the "owner_id" field in this mutation.
+func (m *DisputeMutation) AddedOwnerID() (r int64, exists bool) {
+	v := m.addowner_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetOwnerID resets all changes to the "owner_id" field.
+func (m *DisputeMutation) ResetOwnerID() {
+	m.owner_id = nil
+	m.addowner_id = nil
+}
+
+// SetTargetType sets the "target_type" field.
+func (m *DisputeMutation) SetTargetType(s string) {
+	m.target_type = &s
+}
+
+// TargetType returns the value of the "target_type" field in the mutation.
+func (m *DisputeMutation) TargetType() (r string, exists bool) {
+	v := m.target_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTargetType returns the old "target_type" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldTargetType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTargetType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTargetType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTargetType: %w", err)
+	}
+	return oldValue.TargetType, nil
+}
+
+// ResetTargetType resets all changes to the "target_type" field.
+func (m *DisputeMutation) ResetTargetType() {
+	m.target_type = nil
+}
+
+// SetTargetID sets the "target_id" field.
+func (m *DisputeMutation) SetTargetID(i int64) {
+	m.target_id = &i
+	m.addtarget_id = nil
+}
+
+// TargetID returns the value of the "target_id" field in the mutation.
+func (m *DisputeMutation) TargetID() (r int64, exists bool) {
+	v := m.target_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTargetID returns the old "target_id" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldTargetID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTargetID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTargetID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTargetID: %w", err)
+	}
+	return oldValue.TargetID, nil
+}
+
+// AddTargetID adds i to the "target_id" field.
+func (m *DisputeMutation) AddTargetID(i int64) {
+	if m.addtarget_id != nil {
+		*m.addtarget_id += i
+	} else {
+		m.addtarget_id = &i
+	}
+}
+
+// AddedTargetID returns the value that was added to the "target_id" field in this mutation.
+func (m *DisputeMutation) AddedTargetID() (r int64, exists bool) {
+	v := m.addtarget_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTargetID resets all changes to the "target_id" field.
+func (m *DisputeMutation) ResetTargetID() {
+	m.target_id = nil
+	m.addtarget_id = nil
+}
+
+// SetAmount sets the "amount" field.
+func (m *DisputeMutation) SetAmount(f float64) {
+	m.amount = &f
+	m.addamount = nil
+}
+
+// Amount returns the value of the "amount" field in the mutation.
+func (m *DisputeMutation) Amount() (r float64, exists bool) {
+	v := m.amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAmount returns the old "amount" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAmount: %w", err)
+	}
+	return oldValue.Amount, nil
+}
+
+// AddAmount adds f to the "amount" field.
+func (m *DisputeMutation) AddAmount(f float64) {
+	if m.addamount != nil {
+		*m.addamount += f
+	} else {
+		m.addamount = &f
+	}
+}
+
+// AddedAmount returns the value that was added to the "amount" field in this mutation.
+func (m *DisputeMutation) AddedAmount() (r float64, exists bool) {
+	v := m.addamount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAmount resets all changes to the "amount" field.
+func (m *DisputeMutation) ResetAmount() {
+	m.amount = nil
+	m.addamount = nil
+}
+
+// SetReason sets the "reason" field.
+func (m *DisputeMutation) SetReason(s string) {
+	m.reason = &s
+}
+
+// Reason returns the value of the "reason" field in the mutation.
+func (m *DisputeMutation) Reason() (r string, exists bool) {
+	v := m.reason
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReason returns the old "reason" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldReason(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReason is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReason requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReason: %w", err)
+	}
+	return oldValue.Reason, nil
+}
+
+// ResetReason resets all changes to the "reason" field.
+func (m *DisputeMutation) ResetReason() {
+	m.reason = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *DisputeMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *DisputeMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *DisputeMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetDecision sets the "decision" field.
+func (m *DisputeMutation) SetDecision(s string) {
+	m.decision = &s
+}
+
+// Decision returns the value of the "decision" field in the mutation.
+func (m *DisputeMutation) Decision() (r string, exists bool) {
+	v := m.decision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDecision returns the old "decision" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldDecision(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDecision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDecision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDecision: %w", err)
+	}
+	return oldValue.Decision, nil
+}
+
+// ClearDecision clears the value of the "decision" field.
+func (m *DisputeMutation) ClearDecision() {
+	m.decision = nil
+	m.clearedFields[dispute.FieldDecision] = struct{}{}
+}
+
+// DecisionCleared returns if the "decision" field was cleared in this mutation.
+func (m *DisputeMutation) DecisionCleared() bool {
+	_, ok := m.clearedFields[dispute.FieldDecision]
+	return ok
+}
+
+// ResetDecision resets all changes to the "decision" field.
+func (m *DisputeMutation) ResetDecision() {
+	m.decision = nil
+	delete(m.clearedFields, dispute.FieldDecision)
+}
+
+// SetAdjustAmount sets the "adjust_amount" field.
+func (m *DisputeMutation) SetAdjustAmount(f float64) {
+	m.adjust_amount = &f
+	m.addadjust_amount = nil
+}
+
+// AdjustAmount returns the value of the "adjust_amount" field in the mutation.
+func (m *DisputeMutation) AdjustAmount() (r float64, exists bool) {
+	v := m.adjust_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdjustAmount returns the old "adjust_amount" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldAdjustAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdjustAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdjustAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdjustAmount: %w", err)
+	}
+	return oldValue.AdjustAmount, nil
+}
+
+// AddAdjustAmount adds f to the "adjust_amount" field.
+func (m *DisputeMutation) AddAdjustAmount(f float64) {
+	if m.addadjust_amount != nil {
+		*m.addadjust_amount += f
+	} else {
+		m.addadjust_amount = &f
+	}
+}
+
+// AddedAdjustAmount returns the value that was added to the "adjust_amount" field in this mutation.
+func (m *DisputeMutation) AddedAdjustAmount() (r float64, exists bool) {
+	v := m.addadjust_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAdjustAmount resets all changes to the "adjust_amount" field.
+func (m *DisputeMutation) ResetAdjustAmount() {
+	m.adjust_amount = nil
+	m.addadjust_amount = nil
+}
+
+// SetNote sets the "note" field.
+func (m *DisputeMutation) SetNote(s string) {
+	m.note = &s
+}
+
+// Note returns the value of the "note" field in the mutation.
+func (m *DisputeMutation) Note() (r string, exists bool) {
+	v := m.note
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNote returns the old "note" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldNote(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNote is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNote requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNote: %w", err)
+	}
+	return oldValue.Note, nil
+}
+
+// ClearNote clears the value of the "note" field.
+func (m *DisputeMutation) ClearNote() {
+	m.note = nil
+	m.clearedFields[dispute.FieldNote] = struct{}{}
+}
+
+// NoteCleared returns if the "note" field was cleared in this mutation.
+func (m *DisputeMutation) NoteCleared() bool {
+	_, ok := m.clearedFields[dispute.FieldNote]
+	return ok
+}
+
+// ResetNote resets all changes to the "note" field.
+func (m *DisputeMutation) ResetNote() {
+	m.note = nil
+	delete(m.clearedFields, dispute.FieldNote)
+}
+
+// SetResolvedBy sets the "resolved_by" field.
+func (m *DisputeMutation) SetResolvedBy(s string) {
+	m.resolved_by = &s
+}
+
+// ResolvedBy returns the value of the "resolved_by" field in the mutation.
+func (m *DisputeMutation) ResolvedBy() (r string, exists bool) {
+	v := m.resolved_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResolvedBy returns the old "resolved_by" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldResolvedBy(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResolvedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResolvedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResolvedBy: %w", err)
+	}
+	return oldValue.ResolvedBy, nil
+}
+
+// ClearResolvedBy clears the value of the "resolved_by" field.
+func (m *DisputeMutation) ClearResolvedBy() {
+	m.resolved_by = nil
+	m.clearedFields[dispute.FieldResolvedBy] = struct{}{}
+}
+
+// ResolvedByCleared returns if the "resolved_by" field was cleared in this mutation.
+func (m *DisputeMutation) ResolvedByCleared() bool {
+	_, ok := m.clearedFields[dispute.FieldResolvedBy]
+	return ok
+}
+
+// ResetResolvedBy resets all changes to the "resolved_by" field.
+func (m *DisputeMutation) ResetResolvedBy() {
+	m.resolved_by = nil
+	delete(m.clearedFields, dispute.FieldResolvedBy)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *DisputeMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *DisputeMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *DisputeMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetResolvedAt sets the "resolved_at" field.
+func (m *DisputeMutation) SetResolvedAt(t time.Time) {
+	m.resolved_at = &t
+}
+
+// ResolvedAt returns the value of the "resolved_at" field in the mutation.
+func (m *DisputeMutation) ResolvedAt() (r time.Time, exists bool) {
+	v := m.resolved_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResolvedAt returns the old "resolved_at" field's value of the Dispute entity.
+// If the Dispute object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DisputeMutation) OldResolvedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResolvedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResolvedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResolvedAt: %w", err)
+	}
+	return oldValue.ResolvedAt, nil
+}
+
+// ClearResolvedAt clears the value of the "resolved_at" field.
+func (m *DisputeMutation) ClearResolvedAt() {
+	m.resolved_at = nil
+	m.clearedFields[dispute.FieldResolvedAt] = struct{}{}
+}
+
+// ResolvedAtCleared returns if the "resolved_at" field was cleared in this mutation.
+func (m *DisputeMutation) ResolvedAtCleared() bool {
+	_, ok := m.clearedFields[dispute.FieldResolvedAt]
+	return ok
+}
+
+// ResetResolvedAt resets all changes to the "resolved_at" field.
+func (m *DisputeMutation) ResetResolvedAt() {
+	m.resolved_at = nil
+	delete(m.clearedFields, dispute.FieldResolvedAt)
+}
+
+// Where appends a list predicates to the DisputeMutation builder.
+func (m *DisputeMutation) Where(ps ...predicate.Dispute) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the DisputeMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *DisputeMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Dispute, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *DisputeMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *DisputeMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Dispute).
+func (m *DisputeMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *DisputeMutation) Fields() []string {
+	fields := make([]string, 0, 13)
+	if m.owner_type != nil {
+		fields = append(fields, dispute.FieldOwnerType)
+	}
+	if m.owner_id != nil {
+		fields = append(fields, dispute.FieldOwnerID)
+	}
+	if m.target_type != nil {
+		fields = append(fields, dispute.FieldTargetType)
+	}
+	if m.target_id != nil {
+		fields = append(fields, dispute.FieldTargetID)
+	}
+	if m.amount != nil {
+		fields = append(fields, dispute.FieldAmount)
+	}
+	if m.reason != nil {
+		fields = append(fields, dispute.FieldReason)
+	}
+	if m.status != nil {
+		fields = append(fields, dispute.FieldStatus)
+	}
+	if m.decision != nil {
+		fields = append(fields, dispute.FieldDecision)
+	}
+	if m.adjust_amount != nil {
+		fields = append(fields, dispute.FieldAdjustAmount)
+	}
+	if m.note != nil {
+		fields = append(fields, dispute.FieldNote)
+	}
+	if m.resolved_by != nil {
+		fields = append(fields, dispute.FieldResolvedBy)
+	}
+	if m.created_at != nil {
+		fields = append(fields, dispute.FieldCreatedAt)
+	}
+	if m.resolved_at != nil {
+		fields = append(fields, dispute.FieldResolvedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *DisputeMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case dispute.FieldOwnerType:
+		return m.OwnerType()
+	case dispute.FieldOwnerID:
+		return m.OwnerID()
+	case dispute.FieldTargetType:
+		return m.TargetType()
+	case dispute.FieldTargetID:
+		return m.TargetID()
+	case dispute.FieldAmount:
+		return m.Amount()
+	case dispute.FieldReason:
+		return m.Reason()
+	case dispute.FieldStatus:
+		return m.Status()
+	case dispute.FieldDecision:
+		return m.Decision()
+	case dispute.FieldAdjustAmount:
+		return m.AdjustAmount()
+	case dispute.FieldNote:
+		return m.Note()
+	case dispute.FieldResolvedBy:
+		return m.ResolvedBy()
+	case dispute.FieldCreatedAt:
+		return m.CreatedAt()
+	case dispute.FieldResolvedAt:
+		return m.ResolvedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *DisputeMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case dispute.FieldOwnerType:
+		return m.OldOwnerType(ctx)
+	case dispute.FieldOwnerID:
+		return m.OldOwnerID(ctx)
+	case dispute.FieldTargetType:
+		return m.OldTargetType(ctx)
+	case dispute.FieldTargetID:
+		return m.OldTargetID(ctx)
+	case dispute.FieldAmount:
+		return m.OldAmount(ctx)
+	case dispute.FieldReason:
+		return m.OldReason(ctx)
+	case dispute.FieldStatus:
+		return m.OldStatus(ctx)
+	case dispute.FieldDecision:
+		return m.OldDecision(ctx)
+	case dispute.FieldAdjustAmount:
+		return m.OldAdjustAmount(ctx)
+	case dispute.FieldNote:
+		return m.OldNote(ctx)
+	case dispute.FieldResolvedBy:
+		return m.OldResolvedBy(ctx)
+	case dispute.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case dispute.FieldResolvedAt:
+		return m.OldResolvedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Dispute field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *DisputeMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case dispute.FieldOwnerType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOwnerType(v)
+		return nil
+	case dispute.FieldOwnerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOwnerID(v)
+		return nil
+	case dispute.FieldTargetType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTargetType(v)
+		return nil
+	case dispute.FieldTargetID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTargetID(v)
+		return nil
+	case dispute.FieldAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAmount(v)
+		return nil
+	case dispute.FieldReason:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReason(v)
+		return nil
+	case dispute.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case dispute.FieldDecision:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDecision(v)
+		return nil
+	case dispute.FieldAdjustAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdjustAmount(v)
+		return nil
+	case dispute.FieldNote:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNote(v)
+		return nil
+	case dispute.FieldResolvedBy:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResolvedBy(v)
+		return nil
+	case dispute.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case dispute.FieldResolvedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResolvedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Dispute field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *DisputeMutation) AddedFields() []string {
+	var fields []string
+	if m.addowner_id != nil {
+		fields = append(fields, dispute.FieldOwnerID)
+	}
+	if m.addtarget_id != nil {
+		fields = append(fields, dispute.FieldTargetID)
+	}
+	if m.addamount != nil {
+		fields = append(fields, dispute.FieldAmount)
+	}
+	if m.addadjust_amount != nil {
+		fields = append(fields, dispute.FieldAdjustAmount)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *DisputeMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case dispute.FieldOwnerID:
+		return m.AddedOwnerID()
+	case dispute.FieldTargetID:
+		return m.AddedTargetID()
+	case dispute.FieldAmount:
+		return m.AddedAmount()
+	case dispute.FieldAdjustAmount:
+		return m.AddedAdjustAmount()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *DisputeMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case dispute.FieldOwnerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddOwnerID(v)
+		return nil
+	case dispute.FieldTargetID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTargetID(v)
+		return nil
+	case dispute.FieldAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAmount(v)
+		return nil
+	case dispute.FieldAdjustAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAdjustAmount(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Dispute numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *DisputeMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(dispute.FieldDecision) {
+		fields = append(fields, dispute.FieldDecision)
+	}
+	if m.FieldCleared(dispute.FieldNote) {
+		fields = append(fields, dispute.FieldNote)
+	}
+	if m.FieldCleared(dispute.FieldResolvedBy) {
+		fields = append(fields, dispute.FieldResolvedBy)
+	}
+	if m.FieldCleared(dispute.FieldResolvedAt) {
+		fields = append(fields, dispute.FieldResolvedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *DisputeMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *DisputeMutation) ClearField(name string) error {
+	switch name {
+	case dispute.FieldDecision:
+		m.ClearDecision()
+		return nil
+	case dispute.FieldNote:
+		m.ClearNote()
+		return nil
+	case dispute.FieldResolvedBy:
+		m.ClearResolvedBy()
+		return nil
+	case dispute.FieldResolvedAt:
+		m.ClearResolvedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Dispute nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *DisputeMutation) ResetField(name string) error {
+	switch name {
+	case dispute.FieldOwnerType:
+		m.ResetOwnerType()
+		return nil
+	case dispute.FieldOwnerID:
+		m.ResetOwnerID()
+		return nil
+	case dispute.FieldTargetType:
+		m.ResetTargetType()
+		return nil
+	case dispute.FieldTargetID:
+		m.ResetTargetID()
+		return nil
+	case dispute.FieldAmount:
+		m.ResetAmount()
+		return nil
+	case dispute.FieldReason:
+		m.ResetReason()
+		return nil
+	case dispute.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case dispute.FieldDecision:
+		m.ResetDecision()
+		return nil
+	case dispute.FieldAdjustAmount:
+		m.ResetAdjustAmount()
+		return nil
+	case dispute.FieldNote:
+		m.ResetNote()
+		return nil
+	case dispute.FieldResolvedBy:
+		m.ResetResolvedBy()
+		return nil
+	case dispute.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case dispute.FieldResolvedAt:
+		m.ResetResolvedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Dispute field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *DisputeMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *DisputeMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *DisputeMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *DisputeMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *DisputeMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *DisputeMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *DisputeMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Dispute unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *DisputeMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Dispute edge %s", name)
 }
 
 // ErrorPassthroughRuleMutation represents an operation that mutates the ErrorPassthroughRule nodes in the graph.

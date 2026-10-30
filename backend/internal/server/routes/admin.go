@@ -136,6 +136,9 @@ func RegisterAdminRoutes(
 		// 商户提现审核与打款
 		registerWithdrawalRoutes(admin, h)
 
+		// 申诉仲裁与调账
+		registerDisputeRoutes(admin, h)
+
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
 	}
@@ -175,6 +178,14 @@ func registerWithdrawalRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		withdrawals.POST("/:id/approve", h.Admin.Withdrawal.Approve)
 		withdrawals.POST("/:id/reject", h.Admin.Withdrawal.Reject)
 		withdrawals.POST("/:id/pay", h.Admin.Withdrawal.Pay)
+	}
+}
+
+func registerDisputeRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	disputes := admin.Group("/disputes")
+	{
+		disputes.GET("", h.Admin.Dispute.List)
+		disputes.POST("/:id/resolve", h.Admin.Dispute.Resolve)
 	}
 }
 

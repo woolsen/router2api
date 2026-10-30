@@ -917,6 +917,7 @@ var ProviderSet = wire.NewSet(
 	NewMerchantConsoleService,
 	wire.Bind(new(MerchantConsoleReader), new(*MerchantConsoleService)),
 	NewWithdrawalService,
+	NewDisputeService,
 	NewAdminService,
 	NewGatewayService,
 	NewOpenAIGatewayService,

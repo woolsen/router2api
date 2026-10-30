@@ -43,6 +43,7 @@ type AdminHandlers struct {
 	Affiliate              *admin.AffiliateHandler
 	Merchant               *admin.MerchantHandler
 	Withdrawal             *admin.WithdrawalHandler
+	Dispute                *admin.DisputeHandler
 	Compliance             *admin.ComplianceHandler
 	AuditLog               *admin.AuditLogHandler
 }
@@ -72,6 +73,8 @@ type Handlers struct {
 	MerchantConsole    *MerchantConsoleHandler
 	MerchantApply      *MerchantApplyHandler
 	MerchantWithdrawal *MerchantWithdrawalHandler
+	MerchantDispute    *MerchantDisputeHandler
+	UserDispute        *UserDisputeHandler
 	AsyncImage         *AsyncImageHandler
 	BatchImage         *BatchImageHandler
 }

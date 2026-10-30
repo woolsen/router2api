@@ -135,6 +135,13 @@ func RegisterUserRoutes(
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
 		}
 
+		// 用户单笔扣费申诉
+		disputes := authenticated.Group("/disputes")
+		{
+			disputes.GET("", h.UserDispute.List)
+			disputes.POST("", h.UserDispute.Open)
+		}
+
 		// 渠道监控（用户只读）
 		monitors := authenticated.Group("/channel-monitors")
 		{

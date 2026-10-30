@@ -114,6 +114,7 @@ var ProviderSet = wire.NewSet(
 	NewSettlementRepository,
 	NewSettlementOpsRepository,
 	NewWithdrawalRepository,
+	NewDisputeRepository,
 	NewRequestMetricRepository,
 	NewGroupMetricRepository,
 	NewUserPlatformQuotaRepository,     // T14: user × platform quota

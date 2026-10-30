@@ -41,5 +41,7 @@ func RegisterMerchantRoutes(
 		merchant.GET("/usage/daily", panelRateLimiter.Heavy(), h.MerchantConsole.DailyUsage)
 		merchant.GET("/withdrawals", h.MerchantWithdrawal.List)
 		merchant.POST("/withdrawals", h.MerchantWithdrawal.Request)
+		merchant.GET("/disputes", h.MerchantDispute.List)
+		merchant.POST("/disputes", h.MerchantDispute.Open)
 	}
 }

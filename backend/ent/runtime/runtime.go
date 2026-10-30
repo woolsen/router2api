@@ -20,6 +20,7 @@ import (
 	"github.com/woolsen/router2api/ent/channelmonitorhistory"
 	"github.com/woolsen/router2api/ent/channelmonitorrequesttemplate"
 	"github.com/woolsen/router2api/ent/compositemodelroute"
+	"github.com/woolsen/router2api/ent/dispute"
 	"github.com/woolsen/router2api/ent/errorpassthroughrule"
 	"github.com/woolsen/router2api/ent/group"
 	"github.com/woolsen/router2api/ent/groupmetric"
@@ -946,6 +947,42 @@ func init() {
 	compositemodelrouteDescEnabled := compositemodelrouteFields[7].Descriptor()
 	// compositemodelroute.DefaultEnabled holds the default value on creation for the enabled field.
 	compositemodelroute.DefaultEnabled = compositemodelrouteDescEnabled.Default.(bool)
+	disputeFields := schema.Dispute{}.Fields()
+	_ = disputeFields
+	// disputeDescOwnerType is the schema descriptor for owner_type field.
+	disputeDescOwnerType := disputeFields[0].Descriptor()
+	// dispute.OwnerTypeValidator is a validator for the "owner_type" field. It is called by the builders before save.
+	dispute.OwnerTypeValidator = disputeDescOwnerType.Validators[0].(func(string) error)
+	// disputeDescTargetType is the schema descriptor for target_type field.
+	disputeDescTargetType := disputeFields[2].Descriptor()
+	// dispute.TargetTypeValidator is a validator for the "target_type" field. It is called by the builders before save.
+	dispute.TargetTypeValidator = disputeDescTargetType.Validators[0].(func(string) error)
+	// disputeDescAmount is the schema descriptor for amount field.
+	disputeDescAmount := disputeFields[4].Descriptor()
+	// dispute.DefaultAmount holds the default value on creation for the amount field.
+	dispute.DefaultAmount = disputeDescAmount.Default.(float64)
+	// disputeDescStatus is the schema descriptor for status field.
+	disputeDescStatus := disputeFields[6].Descriptor()
+	// dispute.DefaultStatus holds the default value on creation for the status field.
+	dispute.DefaultStatus = disputeDescStatus.Default.(string)
+	// dispute.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	dispute.StatusValidator = disputeDescStatus.Validators[0].(func(string) error)
+	// disputeDescDecision is the schema descriptor for decision field.
+	disputeDescDecision := disputeFields[7].Descriptor()
+	// dispute.DecisionValidator is a validator for the "decision" field. It is called by the builders before save.
+	dispute.DecisionValidator = disputeDescDecision.Validators[0].(func(string) error)
+	// disputeDescAdjustAmount is the schema descriptor for adjust_amount field.
+	disputeDescAdjustAmount := disputeFields[8].Descriptor()
+	// dispute.DefaultAdjustAmount holds the default value on creation for the adjust_amount field.
+	dispute.DefaultAdjustAmount = disputeDescAdjustAmount.Default.(float64)
+	// disputeDescResolvedBy is the schema descriptor for resolved_by field.
+	disputeDescResolvedBy := disputeFields[10].Descriptor()
+	// dispute.ResolvedByValidator is a validator for the "resolved_by" field. It is called by the builders before save.
+	dispute.ResolvedByValidator = disputeDescResolvedBy.Validators[0].(func(string) error)
+	// disputeDescCreatedAt is the schema descriptor for created_at field.
+	disputeDescCreatedAt := disputeFields[11].Descriptor()
+	// dispute.DefaultCreatedAt holds the default value on creation for the created_at field.
+	dispute.DefaultCreatedAt = disputeDescCreatedAt.Default.(func() time.Time)
 	errorpassthroughruleMixin := schema.ErrorPassthroughRule{}.Mixin()
 	errorpassthroughruleMixinFields0 := errorpassthroughruleMixin[0].Fields()
 	_ = errorpassthroughruleMixinFields0

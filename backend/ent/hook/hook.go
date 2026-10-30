@@ -189,6 +189,18 @@ func (f CompositeModelRouteFunc) Mutate(ctx context.Context, m ent.Mutation) (en
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CompositeModelRouteMutation", m)
 }
 
+// The DisputeFunc type is an adapter to allow the use of ordinary
+// function as Dispute mutator.
+type DisputeFunc func(context.Context, *ent.DisputeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f DisputeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.DisputeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DisputeMutation", m)
+}
+
 // The ErrorPassthroughRuleFunc type is an adapter to allow the use of ordinary
 // function as ErrorPassthroughRule mutator.
 type ErrorPassthroughRuleFunc func(context.Context, *ent.ErrorPassthroughRuleMutation) (ent.Value, error)

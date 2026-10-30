@@ -27,6 +27,7 @@ import (
 	"github.com/woolsen/router2api/ent/channelmonitorhistory"
 	"github.com/woolsen/router2api/ent/channelmonitorrequesttemplate"
 	"github.com/woolsen/router2api/ent/compositemodelroute"
+	"github.com/woolsen/router2api/ent/dispute"
 	"github.com/woolsen/router2api/ent/errorpassthroughrule"
 	"github.com/woolsen/router2api/ent/group"
 	"github.com/woolsen/router2api/ent/groupmetric"
@@ -131,6 +132,7 @@ func checkColumn(t, c string) error {
 			channelmonitorhistory.Table:         channelmonitorhistory.ValidColumn,
 			channelmonitorrequesttemplate.Table: channelmonitorrequesttemplate.ValidColumn,
 			compositemodelroute.Table:           compositemodelroute.ValidColumn,
+			dispute.Table:                       dispute.ValidColumn,
 			errorpassthroughrule.Table:          errorpassthroughrule.ValidColumn,
 			group.Table:                         group.ValidColumn,
 			groupmetric.Table:                   groupmetric.ValidColumn,

@@ -23,6 +23,7 @@ import (
 	"github.com/woolsen/router2api/ent/channelmonitorhistory"
 	"github.com/woolsen/router2api/ent/channelmonitorrequesttemplate"
 	"github.com/woolsen/router2api/ent/compositemodelroute"
+	"github.com/woolsen/router2api/ent/dispute"
 	"github.com/woolsen/router2api/ent/errorpassthroughrule"
 	"github.com/woolsen/router2api/ent/group"
 	"github.com/woolsen/router2api/ent/groupmetric"
@@ -514,6 +515,33 @@ func (f TraverseCompositeModelRoute) Traverse(ctx context.Context, q ent.Query) 
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.CompositeModelRouteQuery", q)
+}
+
+// The DisputeFunc type is an adapter to allow the use of ordinary function as a Querier.
+type DisputeFunc func(context.Context, *ent.DisputeQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f DisputeFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.DisputeQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.DisputeQuery", q)
+}
+
+// The TraverseDispute type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseDispute func(context.Context, *ent.DisputeQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseDispute) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseDispute) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.DisputeQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.DisputeQuery", q)
 }
 
 // The ErrorPassthroughRuleFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -1332,6 +1360,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.ChannelMonitorRequestTemplateQuery, predicate.ChannelMonitorRequestTemplate, channelmonitorrequesttemplate.OrderOption]{typ: ent.TypeChannelMonitorRequestTemplate, tq: q}, nil
 	case *ent.CompositeModelRouteQuery:
 		return &query[*ent.CompositeModelRouteQuery, predicate.CompositeModelRoute, compositemodelroute.OrderOption]{typ: ent.TypeCompositeModelRoute, tq: q}, nil
+	case *ent.DisputeQuery:
+		return &query[*ent.DisputeQuery, predicate.Dispute, dispute.OrderOption]{typ: ent.TypeDispute, tq: q}, nil
 	case *ent.ErrorPassthroughRuleQuery:
 		return &query[*ent.ErrorPassthroughRuleQuery, predicate.ErrorPassthroughRule, errorpassthroughrule.OrderOption]{typ: ent.TypeErrorPassthroughRule, tq: q}, nil
 	case *ent.GroupQuery:

@@ -869,6 +869,49 @@ var (
 			},
 		},
 	}
+	// DisputesColumns holds the columns for the "disputes" table.
+	DisputesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "owner_type", Type: field.TypeString, Size: 20},
+		{Name: "owner_id", Type: field.TypeInt64},
+		{Name: "target_type", Type: field.TypeString, Size: 20},
+		{Name: "target_id", Type: field.TypeInt64},
+		{Name: "amount", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
+		{Name: "reason", Type: field.TypeString, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "open"},
+		{Name: "decision", Type: field.TypeString, Nullable: true, Size: 20},
+		{Name: "adjust_amount", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
+		{Name: "note", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "resolved_by", Type: field.TypeString, Nullable: true, Size: 100},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "resolved_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// DisputesTable holds the schema information for the "disputes" table.
+	DisputesTable = &schema.Table{
+		Name:       "disputes",
+		Columns:    DisputesColumns,
+		PrimaryKey: []*schema.Column{DisputesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "idx_disputes_open_target",
+				Unique:  true,
+				Columns: []*schema.Column{DisputesColumns[3], DisputesColumns[4]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "status = 'open'",
+				},
+			},
+			{
+				Name:    "idx_disputes_owner_created",
+				Unique:  false,
+				Columns: []*schema.Column{DisputesColumns[1], DisputesColumns[2], DisputesColumns[12]},
+			},
+			{
+				Name:    "idx_disputes_status_created",
+				Unique:  false,
+				Columns: []*schema.Column{DisputesColumns[7], DisputesColumns[12]},
+			},
+		},
+	}
 	// ErrorPassthroughRulesColumns holds the columns for the "error_passthrough_rules" table.
 	ErrorPassthroughRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2308,6 +2351,7 @@ var (
 		ChannelMonitorHistoriesTable,
 		ChannelMonitorRequestTemplatesTable,
 		CompositeModelRoutesTable,
+		DisputesTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
 		GroupMetricHourlyTable,
@@ -2399,6 +2443,9 @@ func init() {
 	CompositeModelRoutesTable.ForeignKeys[0].RefTable = GroupsTable
 	CompositeModelRoutesTable.Annotation = &entsql.Annotation{
 		Table: "composite_model_routes",
+	}
+	DisputesTable.Annotation = &entsql.Annotation{
+		Table: "disputes",
 	}
 	ErrorPassthroughRulesTable.Annotation = &entsql.Annotation{
 		Table: "error_passthrough_rules",
