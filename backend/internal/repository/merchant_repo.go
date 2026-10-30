@@ -71,6 +71,12 @@ func (r *merchantRepository) List(
 	return merchantEntitiesToService(items), paginationResultFromTotal(int64(total), params), nil
 }
 
+func (r *merchantRepository) Delete(ctx context.Context, id int64) error {
+	client := clientFromContext(ctx, r.client)
+	err := client.Merchant.DeleteOneID(id).Exec(ctx)
+	return translatePersistenceError(err, service.ErrMerchantNotFound, nil)
+}
+
 func (r *merchantRepository) UpdateCommissionRate(ctx context.Context, id int64, rate float64) error {
 	client := clientFromContext(ctx, r.client)
 	_, err := client.Merchant.UpdateOneID(id).

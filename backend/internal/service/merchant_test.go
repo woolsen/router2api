@@ -50,6 +50,14 @@ func (r *fakeMerchantRepo) List(_ context.Context, params pagination.PaginationP
 	}, nil
 }
 
+func (r *fakeMerchantRepo) Delete(_ context.Context, id int64) error {
+	if _, ok := r.items[id]; !ok {
+		return ErrMerchantNotFound
+	}
+	delete(r.items, id)
+	return nil
+}
+
 func (r *fakeMerchantRepo) UpdateCommissionRate(_ context.Context, id int64, rate float64) error {
 	m, ok := r.items[id]
 	if !ok {

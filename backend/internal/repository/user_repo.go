@@ -30,6 +30,8 @@ import (
 type userRepository struct {
 	client *dbent.Client
 	sql    sqlExecutor
+	// db 用于需要独占连接的会话级 advisory lock（商户申请按 userID 串行化）。
+	db *sql.DB
 }
 
 var _ service.RedeemUserAdjustmentRepository = (*userRepository)(nil)
@@ -47,7 +49,11 @@ func NewMerchantApplyUserRepository(client *dbent.Client, sqlDB *sql.DB) service
 }
 
 func newUserRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *userRepository {
-	return &userRepository{client: client, sql: sqlq}
+	repo := &userRepository{client: client, sql: sqlq}
+	if db, ok := sqlq.(*sql.DB); ok {
+		repo.db = db
+	}
+	return repo
 }
 
 func (r *userRepository) Create(ctx context.Context, userIn *service.User) error {
@@ -835,15 +841,74 @@ func (r *userRepository) filterUsersByAttributes(ctx context.Context, attrs map[
 	return result, nil
 }
 
+// WithMerchantApplyLock 按 userID 串行化自助入驻的落库阶段。
+// PostgreSQL 使用独占连接上的会话级 advisory lock（回调内的写操作使用各自连接，
+// 不要求同一事务）；测试内存库或未配置 *sql.DB 时退化为进程内锁。
+func (r *userRepository) WithMerchantApplyLock(
+	ctx context.Context,
+	userID int64,
+	fn func(context.Context) error,
+) error {
+	if fn == nil {
+		return nil
+	}
+	key := fmt.Sprintf("merchant_apply:user:%d", userID)
+	release := repositoryScopedKeyLocks.lock(key)
+	defer release()
+
+	if r.db == nil {
+		return fn(ctx)
+	}
+
+	conn, err := r.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire merchant apply lock connection: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	lockKey := advisoryLockHash(key)
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, lockKey); err != nil {
+		return fmt.Errorf("acquire merchant apply lock: %w", err)
+	}
+	defer func() {
+		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_, _ = conn.ExecContext(unlockCtx, `SELECT pg_advisory_unlock($1)`, lockKey)
+	}()
+
+	return fn(ctx)
+}
+
 // PromoteToMerchant 把普通用户升级为商户账号，并绑定唯一的 merchant_id。
 // 角色与归属必须一次写入：只改 role 会让商户作用域中间件因 merchant_id 为空拒绝请求。
+//
+// 更新带当前状态条件：0 行表示用户已不是“未绑定商户的普通用户”（并发申请或
+// 管理员已绑定），必须返回冲突，不能覆盖既有归属。
 func (r *userRepository) PromoteToMerchant(ctx context.Context, userID, merchantID int64) error {
 	client := clientFromContext(ctx, r.client)
-	_, err := client.User.UpdateOneID(userID).
+	affected, err := client.User.Update().
+		Where(
+			dbuser.IDEQ(userID),
+			dbuser.RoleEQ(service.RoleUser),
+			dbuser.MerchantIDIsNil(),
+		).
 		SetRole(service.RoleMerchant).
 		SetMerchantID(merchantID).
 		Save(ctx)
-	return translatePersistenceError(err, service.ErrUserNotFound, nil)
+	if err != nil {
+		return translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+	if affected == 0 {
+		exists, err := client.User.Query().Where(dbuser.IDEQ(userID)).Exist(ctx)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return service.ErrUserNotFound
+		}
+		return service.ErrMerchantAlreadyBound
+	}
+	return nil
 }
 
 func (r *userRepository) UpdateBalance(ctx context.Context, id int64, amount float64) error {

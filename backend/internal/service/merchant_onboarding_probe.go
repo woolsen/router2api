@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/woolsen/router2api/internal/pkg/httpclient"
 	"github.com/woolsen/router2api/internal/util/urlvalidator"
 )
 
@@ -43,19 +45,92 @@ type ProbeResult struct {
 // 任一项失败即短路，错误码固定为 ErrProbe*。
 type ProbeService struct {
 	client *http.Client
+	// validateResolvedIP 在每次实际请求（含每一跳重定向）前校验解析后的 IP，
+	// 防止 DNS Rebinding 与跳转到内网。测试可替换为放行函数。
+	validateResolvedIP func(host string) error
 }
 
-// NewProbeService 创建使用默认 HTTP 客户端的探测器。
+// NewProbeService 创建带 SSRF 防护的探测器：解析后的 IP 与每一跳重定向
+// 都必须通过 urlvalidator 校验，禁止 https 降级到 http。
 func NewProbeService() *ProbeService {
-	return NewProbeServiceWithHTTPClient(&http.Client{})
+	client, err := httpclient.GetClient(httpclient.Options{
+		ValidateResolvedIP: true,
+	})
+	if err != nil {
+		client = &http.Client{}
+	}
+	return newProbeService(client, urlvalidator.ValidateResolvedIP)
 }
 
 // NewProbeServiceWithHTTPClient 允许注入 HTTP 客户端（测试用 Transport 指向本地 TLS 上游）。
+// 注入的客户端仍会被包装同样的逐跳校验。
 func NewProbeServiceWithHTTPClient(client *http.Client) *ProbeService {
 	if client == nil {
 		client = &http.Client{}
 	}
-	return &ProbeService{client: client}
+	return newProbeService(client, urlvalidator.ValidateResolvedIP)
+}
+
+func newProbeService(base *http.Client, validate func(string) error) *ProbeService {
+	if base == nil {
+		base = &http.Client{}
+	}
+	// 复制客户端：共享池里的 *http.Client 不允许被原地修改（Transport/CheckRedirect）。
+	client := *base
+	service := &ProbeService{client: &client, validateResolvedIP: validate}
+	transport := client.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	client.Transport = &probeValidationTransport{base: transport, service: service}
+	client.CheckRedirect = service.checkRedirect
+	return service
+}
+
+// probeValidationTransport 对每个实际请求（包括重定向后的请求）重新校验
+// https scheme 与解析后的 IP，避免只在入口 URL 上做一次检查。
+type probeValidationTransport struct {
+	base    http.RoundTripper
+	service *ProbeService
+}
+
+func (t *probeValidationTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req == nil || req.URL == nil {
+		return nil, ErrProbeInsecureURL
+	}
+	if err := t.service.validateURL(req.URL); err != nil {
+		return nil, err
+	}
+	return t.base.RoundTrip(req)
+}
+
+// checkRedirect 在跟随重定向前再次校验目标，并拒绝 https → http 降级。
+func (s *ProbeService) checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	if req == nil || req.URL == nil {
+		return ErrProbeInsecureURL
+	}
+	return s.validateURL(req.URL)
+}
+
+func (s *ProbeService) validateURL(u *url.URL) error {
+	if u == nil || !strings.EqualFold(u.Scheme, "https") {
+		return ErrProbeInsecureURL
+	}
+	host := strings.TrimSpace(u.Hostname())
+	if host == "" {
+		return ErrProbeInsecureURL
+	}
+	validate := s.validateResolvedIP
+	if validate == nil {
+		validate = urlvalidator.ValidateResolvedIP
+	}
+	if err := validate(host); err != nil {
+		return fmt.Errorf("%w: %v", ErrProbeInsecureURL, err)
+	}
+	return nil
 }
 
 // Probe 依次执行四项探测并在第一个失败项处短路。
@@ -83,7 +158,14 @@ func (s *ProbeService) Probe(ctx context.Context, baseURL, apiKey, platform stri
 	defer cancel()
 
 	models, err := s.listModels(ctx, normalized, apiKey, platform)
-	if err != nil || len(models) == 0 {
+	if err != nil {
+		// 重定向被安全策略拒绝时必须给出稳定的 insecure_url，而不是误报模型列表为空。
+		if errors.Is(err, ErrProbeInsecureURL) {
+			return ProbeResult{}, ErrProbeInsecureURL
+		}
+		return ProbeResult{}, ErrProbeModelsEmpty
+	}
+	if len(models) == 0 {
 		return ProbeResult{}, ErrProbeModelsEmpty
 	}
 	result := ProbeResult{Models: models}

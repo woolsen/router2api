@@ -64,6 +64,8 @@ type MerchantRepository interface {
 	Get(ctx context.Context, id int64) (*Merchant, error)
 	List(ctx context.Context, params pagination.PaginationParams) ([]Merchant, *pagination.PaginationResult, error)
 	UpdateCommissionRate(ctx context.Context, id int64, rate float64) error
+	// Delete 软删除商户，用于补偿失败的自助入驻。
+	Delete(ctx context.Context, id int64) error
 }
 
 // MerchantService 负责商户的领域校验与用例编排。
@@ -125,6 +127,14 @@ func (s *MerchantService) SetCommissionRate(ctx context.Context, id int64, rate 
 		return err
 	}
 	return s.repo.UpdateCommissionRate(ctx, id, rate)
+}
+
+// Delete 删除商户；仅供失败申请的回滚补偿使用。
+func (s *MerchantService) Delete(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return ErrMerchantNotFound
+	}
+	return s.repo.Delete(ctx, id)
 }
 
 func validateCommissionRate(rate float64) error {

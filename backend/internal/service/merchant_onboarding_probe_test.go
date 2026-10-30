@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/woolsen/router2api/internal/util/urlvalidator"
 )
 
 // probeTestBaseURL 是探测测试使用的公网域名。httptest 的本地证书同时签发了
@@ -20,6 +23,19 @@ const probeTestBaseURL = "https://upstream.example.com"
 // newProbeTestServer 启动一个真实的 TLS 上游，并返回把公网域名解析到该上游的
 // ProbeService。http://127.0.0.1 会被 urlvalidator 按设计拒绝，不能当桩。
 func newProbeTestServer(t *testing.T, handler http.Handler) *ProbeService {
+	t.Helper()
+	// 测试的 DialContext 已经把连接固定到本地 TLS server，解析校验在这里只放行
+	// 入口域名；需要验证真实解析拦截的用例使用 newProbeTestServerWithValidator。
+	return newProbeTestServerWithValidator(t, handler, func(string) error { return nil })
+}
+
+// newProbeTestServerWithValidator 允许用例替换“解析后 IP 是否安全”的判断，
+// 以便在本地 TLS 桩上验证跳转目标被重新校验。
+func newProbeTestServerWithValidator(
+	t *testing.T,
+	handler http.Handler,
+	validate func(string) error,
+) *ProbeService {
 	t.Helper()
 	srv := httptest.NewTLSServer(handler)
 	t.Cleanup(srv.Close)
@@ -34,7 +50,9 @@ func newProbeTestServer(t *testing.T, handler http.Handler) *ProbeService {
 	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return dialer.DialContext(ctx, network, target)
 	}
-	return NewProbeServiceWithHTTPClient(&http.Client{Transport: transport})
+	probe := NewProbeServiceWithHTTPClient(&http.Client{Transport: transport})
+	probe.validateResolvedIP = validate
+	return probe
 }
 
 // fakeOpenAIUpstream 模拟 OpenAI 兼容上游。usage / sse 控制四项探测中的
@@ -135,11 +153,51 @@ func TestProbeRejectsNonHTTPSAndPrivateIP(t *testing.T) {
 		"https://10.0.0.8",
 		"https://localhost:8443",
 		"https://[::1]:8443",
+		"https://100.100.100.200",
 	}
 	for _, baseURL := range cases {
 		if _, err := probe.Probe(context.Background(), baseURL, "k", PlatformOpenAI); err == nil || err.Error() != "insecure_url" {
 			t.Fatalf("Probe(%q) error = %v, want insecure_url", baseURL, err)
 		}
+	}
+}
+
+func TestProbeRejectsRedirectToPrivateHost(t *testing.T) {
+	// 公网入口返回重定向时，每一跳都必须重新校验 scheme 与解析后的 IP。
+	// 302/307 分别是“降级到 http 回环”和“保留方法跳到 https 回环”的典型绕过。
+	cases := []struct {
+		name     string
+		status   int
+		location string
+	}{
+		{
+			name:     "302 downgrades to http loopback",
+			status:   http.StatusFound,
+			location: "http://127.0.0.1:9/v1/models",
+		},
+		{
+			name:     "307 keeps method and targets https loopback",
+			status:   http.StatusTemporaryRedirect,
+			location: "https://127.0.0.1:9/v1/chat/completions",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, tc.location, tc.status)
+			})
+			probe := newProbeTestServerWithValidator(t, handler, func(host string) error {
+				if host == "upstream.example.com" {
+					return nil
+				}
+				return urlvalidator.ValidateResolvedIP(host)
+			})
+
+			res, err := probe.Probe(context.Background(), probeTestBaseURL, "sk-probe", PlatformOpenAI)
+			if !errors.Is(err, ErrProbeInsecureURL) {
+				t.Fatalf("Probe() error = %v / %+v, want insecure_url for redirect to %s", err, res, tc.location)
+			}
+		})
 	}
 }
 

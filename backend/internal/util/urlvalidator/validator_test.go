@@ -79,6 +79,7 @@ func TestIsBlockedHost(t *testing.T) {
 		"localhost", "LOCALHOST", "foo.localhost", " 127.0.0.1 ",
 		"127.0.0.1", "::1", "10.0.0.5", "172.16.0.1", "192.168.1.1",
 		"169.254.169.254", "0.0.0.0", "::", "fe80::1", "fc00::1", "::ffff:127.0.0.1",
+		"100.64.0.1", "100.100.100.200", "100.127.255.254",
 	} {
 		if !IsBlockedHost(host) {
 			t.Fatalf("expected %q to be blocked", host)
@@ -88,5 +89,18 @@ func TestIsBlockedHost(t *testing.T) {
 		if IsBlockedHost(host) {
 			t.Fatalf("expected %q to be allowed", host)
 		}
+	}
+}
+
+func TestValidateResolvedIPBlocksCloudMetadataAndCGNAT(t *testing.T) {
+	// 100.64.0.0/10 是运营商级 NAT 段，net.IP.IsPrivate 不覆盖；
+	// 100.100.100.200 是阿里云元数据地址，必须按字面量解析后也拒绝。
+	for _, host := range []string{"100.100.100.200", "100.64.0.1"} {
+		if err := ValidateResolvedIP(host); err == nil {
+			t.Fatalf("ValidateResolvedIP(%q) = nil, want blocked", host)
+		}
+	}
+	if err := ValidateResolvedIP("93.184.216.34"); err != nil {
+		t.Fatalf("ValidateResolvedIP(public ip) error = %v, want nil", err)
 	}
 }

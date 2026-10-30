@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"testing"
@@ -48,6 +50,17 @@ func (r *fakeApplyGroupRepo) GetByID(_ context.Context, id int64) (*Group, error
 	}
 	cp := *group
 	return &cp, nil
+}
+
+func (r *fakeApplyGroupRepo) Delete(_ context.Context, id int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.byID[id]; !ok {
+		return ErrGroupNotFound
+	}
+	// 真实仓储是软删除，部分唯一索引允许同名重建。
+	delete(r.byID, id)
+	return nil
 }
 
 func (r *fakeApplyGroupRepo) ExistsByName(_ context.Context, name string) (bool, error) {
@@ -141,6 +154,26 @@ func (r *fakeApplyChannelRepo) ListAll(_ context.Context) ([]Channel, error) {
 	return out, nil
 }
 
+func (r *fakeApplyChannelRepo) Delete(_ context.Context, id int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.byID[id]; !ok {
+		return ErrChannelNotFound
+	}
+	delete(r.byID, id)
+	return nil
+}
+
+func (r *fakeApplyChannelRepo) GetGroupIDs(_ context.Context, channelID int64) ([]int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	channel, ok := r.byID[channelID]
+	if !ok {
+		return nil, ErrChannelNotFound
+	}
+	return append([]int64(nil), channel.GroupIDs...), nil
+}
+
 func (r *fakeApplyChannelRepo) ExistsByName(_ context.Context, name string) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -183,7 +216,11 @@ func cloneApplyChannel(channel *Channel) *Channel {
 // fakeApplyUserRepo 提供申请流程所需的用户读取与商户绑定能力。
 type fakeApplyUserRepo struct {
 	mu    sync.Mutex
+	apply sync.Mutex
 	users map[int64]*User
+
+	// promoteFailures 模拟最后一步失败；大于 0 时下一次 Promote 直接报错。
+	promoteFailures int
 }
 
 func newFakeApplyUserRepo() *fakeApplyUserRepo {
@@ -201,12 +238,30 @@ func (r *fakeApplyUserRepo) GetByID(_ context.Context, id int64) (*User, error) 
 	return &cp, nil
 }
 
+func (r *fakeApplyUserRepo) WithMerchantApplyLock(
+	_ context.Context,
+	_ int64,
+	fn func(context.Context) error,
+) error {
+	// 与 GetByID/PromoteToMerchant 用不同的锁，避免回调内再次取 r.mu 时自锁。
+	r.apply.Lock()
+	defer r.apply.Unlock()
+	return fn(context.Background())
+}
+
 func (r *fakeApplyUserRepo) PromoteToMerchant(_ context.Context, userID, merchantID int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.promoteFailures > 0 {
+		r.promoteFailures--
+		return errors.New("promote failed")
+	}
 	user, ok := r.users[userID]
 	if !ok {
 		return ErrUserNotFound
+	}
+	if user.Role != RoleUser || user.MerchantID != nil {
+		return ErrMerchantAlreadyBound
 	}
 	id := merchantID
 	user.Role = RoleMerchant
@@ -220,6 +275,7 @@ type applyFixture struct {
 	groups       *fakeApplyGroupRepo
 	channels     *fakeApplyChannelRepo
 	users        *fakeApplyUserRepo
+	accounts     *fakeOnboardingAccountRepo
 }
 
 func newApplyFixture(t *testing.T, upstream http.Handler) *applyFixture {
@@ -232,8 +288,9 @@ func newApplyFixture(t *testing.T, upstream http.Handler) *applyFixture {
 	users := newFakeApplyUserRepo()
 	users.users[42] = &User{ID: 42, Email: "apply@example.com", Role: RoleUser, Status: StatusActive}
 
+	accounts := newFakeOnboardingAccountRepo()
 	channelSvc := NewChannelService(channels, groups, nil, nil, nil)
-	onboarding := NewMerchantOnboardingService(merchantSvc, newFakeOnboardingAccountRepo(), groups, channelSvc, nil)
+	onboarding := NewMerchantOnboardingService(merchantSvc, accounts, groups, channelSvc, nil)
 	apply := NewMerchantApplyService(probe, merchantSvc, groups, onboarding, users)
 
 	return &applyFixture{
@@ -242,6 +299,7 @@ func newApplyFixture(t *testing.T, upstream http.Handler) *applyFixture {
 		groups:       groups,
 		channels:     channels,
 		users:        users,
+		accounts:     accounts,
 	}
 }
 
@@ -338,6 +396,95 @@ func TestApplyRejectsProbeFailureWithoutCreatingMerchant(t *testing.T) {
 	}
 }
 
+func TestApplyRetriesAfterPromotionFailure(t *testing.T) {
+	ctx := context.Background()
+	f := newApplyFixture(t, fakeOpenAIUpstream(t, true, true))
+	f.users.promoteFailures = 1
+	input := ApplyInput{
+		MerchantName: "重试商户",
+		BaseURL:      probeTestBaseURL,
+		APIKey:       "sk-probe",
+		Platform:     PlatformOpenAI,
+	}
+
+	if _, err := f.svc.Submit(ctx, 42, input); err == nil || err.Error() != "promote failed" {
+		t.Fatalf("first Submit() error = %v, want promote failed", err)
+	}
+
+	// 最后一步失败必须补偿本次新建的分组、渠道、商户与账号，
+	// 否则同名重试会永久撞上 GROUP_EXISTS。
+	f.groups.mu.Lock()
+	groupCount := len(f.groups.byID)
+	f.groups.mu.Unlock()
+	f.channels.mu.Lock()
+	channelCount := len(f.channels.byID)
+	f.channels.mu.Unlock()
+	f.accounts.mu.Lock()
+	accountCount := len(f.accounts.accounts)
+	f.accounts.mu.Unlock()
+	if groupCount != 0 || channelCount != 0 || len(f.merchantRepo.items) != 0 || accountCount != 0 {
+		t.Fatalf("leftovers after failed apply: groups=%d channels=%d merchants=%d accounts=%d, want all 0",
+			groupCount, channelCount, len(f.merchantRepo.items), accountCount)
+	}
+	user, _ := f.users.GetByID(ctx, 42)
+	if user.Role != RoleUser || user.MerchantID != nil {
+		t.Fatalf("user = %+v after failed apply, want unchanged", user)
+	}
+
+	merchant, err := f.svc.Submit(ctx, 42, input)
+	if err != nil {
+		t.Fatalf("retry Submit() error = %v, want success", err)
+	}
+	if merchant == nil || merchant.Name != "重试商户" {
+		t.Fatalf("retry merchant = %+v", merchant)
+	}
+	user, _ = f.users.GetByID(ctx, 42)
+	if user.Role != RoleMerchant || user.MerchantID == nil || *user.MerchantID != merchant.ID {
+		t.Fatalf("user = %+v after retry, want bound to merchant %d", user, merchant.ID)
+	}
+}
+
+func TestApplyConcurrentSubmissionsOnlyOneBindsMerchant(t *testing.T) {
+	ctx := context.Background()
+	f := newApplyFixture(t, fakeOpenAIUpstream(t, true, true))
+	input := ApplyInput{
+		MerchantName: "并发商户",
+		BaseURL:      probeTestBaseURL,
+		APIKey:       "sk-probe",
+		Platform:     PlatformOpenAI,
+	}
+
+	const attempts = 2
+	errs := make(chan error, attempts)
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := f.svc.Submit(ctx, 42, input)
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	successes := 0
+	conflicts := 0
+	for err := range errs {
+		switch {
+		case err == nil:
+			successes++
+		case infraerrors.Reason(err) == "MERCHANT_ALREADY_BOUND":
+			conflicts++
+		default:
+			t.Fatalf("concurrent Submit() error = %v", err)
+		}
+	}
+	if successes != 1 || conflicts != attempts-1 {
+		t.Fatalf("successes=%d conflicts=%d, want 1/%d", successes, conflicts, attempts-1)
+	}
+}
+
 func TestApplyRejectsSecondApplication(t *testing.T) {
 	ctx := context.Background()
 	f := newApplyFixture(t, fakeOpenAIUpstream(t, true, true))
@@ -391,6 +538,73 @@ func TestApplyUsesRequestedModelsAndRate(t *testing.T) {
 	}
 	if len(plazaGroups) != 1 || len(plazaGroups[0].Models) != 1 || plazaGroups[0].Models[0].Name != "gpt-4o-mini" {
 		t.Fatalf("models = %+v, want requested model only", plazaGroups)
+	}
+}
+
+func TestApplyIntersectsSelectedModelsWithProbeResult(t *testing.T) {
+	ctx := context.Background()
+	f := newApplyFixture(t, fakeOpenAIUpstream(t, true, true))
+
+	if _, err := f.svc.Submit(ctx, 42, ApplyInput{
+		MerchantName: "交集商户",
+		BaseURL:      probeTestBaseURL,
+		APIKey:       "sk-probe",
+		Platform:     PlatformOpenAI,
+		Models:       []string{"gpt-4o-mini", "admin-only-model"},
+	}); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+
+	shelf := NewModelPlazaService(f.channels, f.groups, nil, nil, nil)
+	groups, err := shelf.ListGroups(ctx)
+	if err != nil {
+		t.Fatalf("ListGroups() error = %v", err)
+	}
+	if len(groups) != 1 || len(groups[0].Models) != 1 || groups[0].Models[0].Name != "gpt-4o-mini" {
+		t.Fatalf("shelf models = %+v, want only the probed model", groups)
+	}
+}
+
+func TestApplyRejectsModelsWithEmptyIntersection(t *testing.T) {
+	ctx := context.Background()
+	f := newApplyFixture(t, fakeOpenAIUpstream(t, true, true))
+
+	_, err := f.svc.Submit(ctx, 42, ApplyInput{
+		MerchantName: "越权商户",
+		BaseURL:      probeTestBaseURL,
+		APIKey:       "sk-probe",
+		Platform:     PlatformOpenAI,
+		Models:       []string{"admin-only-model"},
+	})
+	if infraerrors.Reason(err) != "MERCHANT_MODELS_MISMATCH" {
+		t.Fatalf("Submit() error = %v, want MERCHANT_MODELS_MISMATCH", err)
+	}
+	if len(f.merchantRepo.items) != 0 {
+		t.Fatalf("merchants = %d, rejected models must not create a merchant", len(f.merchantRepo.items))
+	}
+}
+
+func TestApplyRejectsTooManySelectedModels(t *testing.T) {
+	ctx := context.Background()
+	f := newApplyFixture(t, fakeOpenAIUpstream(t, true, true))
+
+	models := make([]string, 201)
+	for i := range models {
+		models[i] = fmt.Sprintf("requested-model-%d", i)
+	}
+	models[0] = "gpt-4o-mini"
+	_, err := f.svc.Submit(ctx, 42, ApplyInput{
+		MerchantName: "超量商户",
+		BaseURL:      probeTestBaseURL,
+		APIKey:       "sk-probe",
+		Platform:     PlatformOpenAI,
+		Models:       models,
+	})
+	if infraerrors.Reason(err) != "MERCHANT_MODELS_TOO_MANY" {
+		t.Fatalf("Submit() error = %v, want MERCHANT_MODELS_TOO_MANY", err)
+	}
+	if len(f.merchantRepo.items) != 0 {
+		t.Fatalf("merchants = %d, rejected models must not create a merchant", len(f.merchantRepo.items))
 	}
 }
 
