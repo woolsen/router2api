@@ -222,6 +222,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/merchant/withdrawals',
+    name: 'MerchantWithdrawals',
+    component: () => import('@/views/merchant/WithdrawalsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresMerchant: true,
+      hideInMenu: true,
+      title: 'Merchant Withdrawals',
+      titleKey: 'merchant.withdrawals.title',
+      descriptionKey: 'merchant.withdrawals.description'
+    }
+  },
+  {
     path: '/keys',
     name: 'Keys',
     component: () => import('@/views/user/KeysView.vue'),

@@ -17,7 +17,7 @@ type MerchantDashboard struct {
 	MerchantID     int64
 	Name           string
 	CommissionRate float64
-	// PayableBalance 是尚未打款的结算单净额之和；商户资金账本落地前以此为准。
+	// PayableBalance 是商户资金账本的可用余额（merchant_balance.balance）。
 	PayableBalance float64
 }
 
@@ -43,7 +43,7 @@ type MerchantUsageTrend struct {
 // MerchantConsoleRepository 是商户后台的只读查询接口。
 // 所有方法都以服务端注入的 merchantID 为唯一过滤条件。
 type MerchantConsoleRepository interface {
-	// PayableBalance 返回该商户尚未打款的结算单净额之和。
+	// PayableBalance 返回该商户 merchant_balance.balance（与提现可用额同口径）。
 	PayableBalance(ctx context.Context, merchantID int64) (float64, error)
 	// DailyUsage 汇总 [from, to) 内该商户的每日计费用量，按日期升序。
 	DailyUsage(ctx context.Context, merchantID int64, from, to time.Time) ([]MerchantDailyUsagePoint, error)
@@ -70,7 +70,7 @@ func NewMerchantConsoleService(merchants *MerchantService, repo MerchantConsoleR
 	}
 }
 
-// Dashboard 返回商户名、抽成率与未打款应付余额。
+// Dashboard 返回商户名、抽成率与可用余额。
 func (s *MerchantConsoleService) Dashboard(ctx context.Context, merchantID int64) (*MerchantDashboard, error) {
 	if merchantID <= 0 {
 		return nil, ErrMerchantNotFound

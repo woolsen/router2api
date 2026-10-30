@@ -52,6 +52,7 @@ import (
 	"github.com/woolsen/router2api/ent/userattributevalue"
 	"github.com/woolsen/router2api/ent/userplatformquota"
 	"github.com/woolsen/router2api/ent/usersubscription"
+	"github.com/woolsen/router2api/ent/withdrawal"
 )
 
 // The Query interface represents an operation that queries a graph.
@@ -1271,6 +1272,33 @@ func (f TraverseUserSubscription) Traverse(ctx context.Context, q ent.Query) err
 	return fmt.Errorf("unexpected query type %T. expect *ent.UserSubscriptionQuery", q)
 }
 
+// The WithdrawalFunc type is an adapter to allow the use of ordinary function as a Querier.
+type WithdrawalFunc func(context.Context, *ent.WithdrawalQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f WithdrawalFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.WithdrawalQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.WithdrawalQuery", q)
+}
+
+// The TraverseWithdrawal type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseWithdrawal func(context.Context, *ent.WithdrawalQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseWithdrawal) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseWithdrawal) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.WithdrawalQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.WithdrawalQuery", q)
+}
+
 // NewQuery returns the generic Query interface for the given typed query.
 func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
@@ -1360,6 +1388,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.UserPlatformQuotaQuery, predicate.UserPlatformQuota, userplatformquota.OrderOption]{typ: ent.TypeUserPlatformQuota, tq: q}, nil
 	case *ent.UserSubscriptionQuery:
 		return &query[*ent.UserSubscriptionQuery, predicate.UserSubscription, usersubscription.OrderOption]{typ: ent.TypeUserSubscription, tq: q}, nil
+	case *ent.WithdrawalQuery:
+		return &query[*ent.WithdrawalQuery, predicate.Withdrawal, withdrawal.OrderOption]{typ: ent.TypeWithdrawal, tq: q}, nil
 	default:
 		return nil, fmt.Errorf("unknown query type %T", q)
 	}

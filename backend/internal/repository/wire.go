@@ -112,6 +112,7 @@ var ProviderSet = wire.NewSet(
 	NewMerchantConsoleRepository,
 	NewSettlementRepository,
 	NewSettlementOpsRepository,
+	NewWithdrawalRepository,
 	NewRequestMetricRepository,
 	NewGroupMetricRepository,
 	NewUserPlatformQuotaRepository,     // T14: user × platform quota

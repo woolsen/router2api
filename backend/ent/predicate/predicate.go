@@ -134,3 +134,6 @@ type UserPlatformQuota func(*sql.Selector)
 
 // UserSubscription is the predicate function for usersubscription builders.
 type UserSubscription func(*sql.Selector)
+
+// Withdrawal is the predicate function for withdrawal builders.
+type Withdrawal func(*sql.Selector)

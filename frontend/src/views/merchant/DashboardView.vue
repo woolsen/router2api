@@ -15,11 +15,20 @@
         </div>
       </header>
 
-      <!-- 商户后台导航骨架：分组/结算单/提现/申诉将在后续任务接入。 -->
+      <!-- 商户后台导航：概览与提现已接入，其余任务后续补齐。 -->
       <nav class="card flex flex-wrap items-center gap-1 p-1.5" aria-label="merchant console">
-        <span class="rounded-lg bg-primary-50 px-3 py-1.5 text-sm font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+        <RouterLink
+          to="/merchant/dashboard"
+          class="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-dark-300 dark:hover:bg-dark-800"
+        >
           {{ t('merchant.nav.overview') }}
-        </span>
+        </RouterLink>
+        <RouterLink
+          to="/merchant/withdrawals"
+          class="rounded-lg px-3 py-1.5 text-sm font-medium text-primary-700 hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-900/30"
+        >
+          {{ t('merchant.nav.withdrawals') }}
+        </RouterLink>
         <span
           v-for="item in navPlaceholders"
           :key="item.key"
@@ -204,7 +213,6 @@ const loadFailed = ref(false)
 const navPlaceholders = [
   { key: 'merchant.nav.groups' },
   { key: 'merchant.nav.settlements' },
-  { key: 'merchant.nav.withdrawals' },
   { key: 'merchant.nav.disputes' },
 ] as const
 

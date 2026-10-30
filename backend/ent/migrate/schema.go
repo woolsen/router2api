@@ -2253,6 +2253,44 @@ var (
 			},
 		},
 	}
+	// WithdrawalsColumns holds the columns for the "withdrawals" table.
+	WithdrawalsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "merchant_id", Type: field.TypeInt64},
+		{Name: "amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "requested"},
+		{Name: "proof_path", Type: field.TypeString, Nullable: true, Size: 500},
+		{Name: "proof_sha256", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "approved_by", Type: field.TypeString, Nullable: true, Size: 100},
+		{Name: "requested_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "paid_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// WithdrawalsTable holds the schema information for the "withdrawals" table.
+	WithdrawalsTable = &schema.Table{
+		Name:       "withdrawals",
+		Columns:    WithdrawalsColumns,
+		PrimaryKey: []*schema.Column{WithdrawalsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "idx_withdrawals_open",
+				Unique:  true,
+				Columns: []*schema.Column{WithdrawalsColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "status IN ('requested','approved')",
+				},
+			},
+			{
+				Name:    "withdrawal_merchant_id_requested_at",
+				Unique:  false,
+				Columns: []*schema.Column{WithdrawalsColumns[1], WithdrawalsColumns[7]},
+			},
+			{
+				Name:    "withdrawal_status",
+				Unique:  false,
+				Columns: []*schema.Column{WithdrawalsColumns[3]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		APIKeysTable,
@@ -2298,6 +2336,7 @@ var (
 		UserAttributeValuesTable,
 		UserPlatformQuotasTable,
 		UserSubscriptionsTable,
+		WithdrawalsTable,
 	}
 )
 
@@ -2466,5 +2505,8 @@ func init() {
 	UserSubscriptionsTable.ForeignKeys[2].RefTable = UsersTable
 	UserSubscriptionsTable.Annotation = &entsql.Annotation{
 		Table: "user_subscriptions",
+	}
+	WithdrawalsTable.Annotation = &entsql.Annotation{
+		Table: "withdrawals",
 	}
 }

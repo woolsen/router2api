@@ -42,35 +42,37 @@ type AdminHandlers struct {
 	Payment                *admin.PaymentHandler
 	Affiliate              *admin.AffiliateHandler
 	Merchant               *admin.MerchantHandler
+	Withdrawal             *admin.WithdrawalHandler
 	Compliance             *admin.ComplianceHandler
 	AuditLog               *admin.AuditLogHandler
 }
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
-	Auth             *AuthHandler
-	User             *UserHandler
-	APIKey           *APIKeyHandler
-	Usage            *UsageHandler
-	Redeem           *RedeemHandler
-	Subscription     *SubscriptionHandler
-	Announcement     *AnnouncementHandler
-	ChannelMonitor   *ChannelMonitorUserHandler
-	ChannelMonitorV2 *ChannelMonitorV2Handler
-	Admin            *AdminHandlers
-	Gateway          *GatewayHandler
-	OpenAIGateway    *OpenAIGatewayHandler
-	Setting          *SettingHandler
-	Totp             *TotpHandler
-	Passkey          *PasskeyHandler
-	Payment          *PaymentHandler
-	PaymentWebhook   *PaymentWebhookHandler
-	AvailableChannel *AvailableChannelHandler
-	ModelPlaza       *ModelPlazaHandler
-	Market           *MarketGroupsHandler
-	MerchantConsole  *MerchantConsoleHandler
-	AsyncImage       *AsyncImageHandler
-	BatchImage       *BatchImageHandler
+	Auth               *AuthHandler
+	User               *UserHandler
+	APIKey             *APIKeyHandler
+	Usage              *UsageHandler
+	Redeem             *RedeemHandler
+	Subscription       *SubscriptionHandler
+	Announcement       *AnnouncementHandler
+	ChannelMonitor     *ChannelMonitorUserHandler
+	ChannelMonitorV2   *ChannelMonitorV2Handler
+	Admin              *AdminHandlers
+	Gateway            *GatewayHandler
+	OpenAIGateway      *OpenAIGatewayHandler
+	Setting            *SettingHandler
+	Totp               *TotpHandler
+	Passkey            *PasskeyHandler
+	Payment            *PaymentHandler
+	PaymentWebhook     *PaymentWebhookHandler
+	AvailableChannel   *AvailableChannelHandler
+	ModelPlaza         *ModelPlazaHandler
+	Market             *MarketGroupsHandler
+	MerchantConsole    *MerchantConsoleHandler
+	MerchantWithdrawal *MerchantWithdrawalHandler
+	AsyncImage         *AsyncImageHandler
+	BatchImage         *BatchImageHandler
 }
 
 // BuildInfo contains build-time information

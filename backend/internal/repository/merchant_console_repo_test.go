@@ -10,14 +10,12 @@ import (
 	"github.com/woolsen/router2api/internal/service"
 )
 
-// 商户后台的金额口径必须与结算一致；这里逐条钉住过滤条件，避免多算订阅额度
-// 或把费率未知的行当成 0 抽成。
-func TestMerchantConsoleRepositoryPayableBalanceExcludesPaidSettlements(t *testing.T) {
+// 商户后台的应付余额与提现可用额同口径：只读 merchant_balance.balance。
+func TestMerchantConsoleRepositoryPayableBalanceReadsWallet(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := newMerchantConsoleRepositoryWithSQL(db)
 
-	mock.ExpectQuery(`(?s)SELECT COALESCE\(SUM\(net_payable\), 0\).*` +
-		`FROM settlements\s+WHERE merchant_id = \$1\s+AND status <> 'paid'`).
+	mock.ExpectQuery(`(?s)SELECT COALESCE\(\(SELECT balance FROM merchant_balance WHERE merchant_id = \$1\), 0\)`).
 		WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow("42.5000000000"))
 

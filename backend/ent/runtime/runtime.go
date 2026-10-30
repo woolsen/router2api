@@ -49,6 +49,7 @@ import (
 	"github.com/woolsen/router2api/ent/userattributevalue"
 	"github.com/woolsen/router2api/ent/userplatformquota"
 	"github.com/woolsen/router2api/ent/usersubscription"
+	"github.com/woolsen/router2api/ent/withdrawal"
 	"github.com/woolsen/router2api/internal/domain"
 )
 
@@ -2714,6 +2715,30 @@ func init() {
 	usersubscriptionDescAssignedAt := usersubscriptionFields[12].Descriptor()
 	// usersubscription.DefaultAssignedAt holds the default value on creation for the assigned_at field.
 	usersubscription.DefaultAssignedAt = usersubscriptionDescAssignedAt.Default.(func() time.Time)
+	withdrawalFields := schema.Withdrawal{}.Fields()
+	_ = withdrawalFields
+	// withdrawalDescStatus is the schema descriptor for status field.
+	withdrawalDescStatus := withdrawalFields[2].Descriptor()
+	// withdrawal.DefaultStatus holds the default value on creation for the status field.
+	withdrawal.DefaultStatus = withdrawalDescStatus.Default.(string)
+	// withdrawal.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	withdrawal.StatusValidator = withdrawalDescStatus.Validators[0].(func(string) error)
+	// withdrawalDescProofPath is the schema descriptor for proof_path field.
+	withdrawalDescProofPath := withdrawalFields[3].Descriptor()
+	// withdrawal.ProofPathValidator is a validator for the "proof_path" field. It is called by the builders before save.
+	withdrawal.ProofPathValidator = withdrawalDescProofPath.Validators[0].(func(string) error)
+	// withdrawalDescProofSha256 is the schema descriptor for proof_sha256 field.
+	withdrawalDescProofSha256 := withdrawalFields[4].Descriptor()
+	// withdrawal.ProofSha256Validator is a validator for the "proof_sha256" field. It is called by the builders before save.
+	withdrawal.ProofSha256Validator = withdrawalDescProofSha256.Validators[0].(func(string) error)
+	// withdrawalDescApprovedBy is the schema descriptor for approved_by field.
+	withdrawalDescApprovedBy := withdrawalFields[5].Descriptor()
+	// withdrawal.ApprovedByValidator is a validator for the "approved_by" field. It is called by the builders before save.
+	withdrawal.ApprovedByValidator = withdrawalDescApprovedBy.Validators[0].(func(string) error)
+	// withdrawalDescRequestedAt is the schema descriptor for requested_at field.
+	withdrawalDescRequestedAt := withdrawalFields[6].Descriptor()
+	// withdrawal.DefaultRequestedAt holds the default value on creation for the requested_at field.
+	withdrawal.DefaultRequestedAt = withdrawalDescRequestedAt.Default.(func() time.Time)
 }
 
 const (

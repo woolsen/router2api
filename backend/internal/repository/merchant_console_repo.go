@@ -8,13 +8,11 @@ import (
 	"github.com/woolsen/router2api/internal/service"
 )
 
-// merchantPayableBalanceQuery 汇总尚未打款的结算单净额。
-// payable 只包含待确认/已确认（未打款）的结算单；已打款的不再是平台负债。
+// merchantPayableBalanceQuery 直接读商户资金账本的可用余额。
+// 唯一口径：merchant_balance.balance（已确认结算入账、提现冻结已扣除）；
+// 不再从 settlements 推导，避免两套账本漂移；pending 结算从未入账。
 const merchantPayableBalanceQuery = `
-SELECT COALESCE(SUM(net_payable), 0)
-FROM settlements
-WHERE merchant_id = $1
-  AND status <> 'paid'`
+SELECT COALESCE((SELECT balance FROM merchant_balance WHERE merchant_id = $1), 0)`
 
 // merchantDailyUsageQuery 按 UTC 自然日汇总计费用量。
 // 与结算口径保持一致：只算钱包计费、actual_cost > 0 的行；

@@ -58,6 +58,7 @@ import (
 	"github.com/woolsen/router2api/ent/userattributevalue"
 	"github.com/woolsen/router2api/ent/userplatformquota"
 	"github.com/woolsen/router2api/ent/usersubscription"
+	"github.com/woolsen/router2api/ent/withdrawal"
 
 	stdsql "database/sql"
 )
@@ -153,6 +154,8 @@ type Client struct {
 	UserPlatformQuota *UserPlatformQuotaClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
+	// Withdrawal is the client for interacting with the Withdrawal builders.
+	Withdrawal *WithdrawalClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -207,6 +210,7 @@ func (c *Client) init() {
 	c.UserAttributeValue = NewUserAttributeValueClient(c.config)
 	c.UserPlatformQuota = NewUserPlatformQuotaClient(c.config)
 	c.UserSubscription = NewUserSubscriptionClient(c.config)
+	c.Withdrawal = NewWithdrawalClient(c.config)
 }
 
 type (
@@ -342,6 +346,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
 		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
+		Withdrawal:                    NewWithdrawalClient(cfg),
 	}, nil
 }
 
@@ -404,6 +409,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
 		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
+		Withdrawal:                    NewWithdrawalClient(cfg),
 	}, nil
 }
 
@@ -444,7 +450,7 @@ func (c *Client) Use(hooks ...Hook) {
 		c.Setting, c.Settlement, c.SubscriptionPlan, c.TLSFingerprintProfile,
 		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
 		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
-		c.UserSubscription,
+		c.UserSubscription, c.Withdrawal,
 	} {
 		n.Use(hooks...)
 	}
@@ -465,7 +471,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.Setting, c.Settlement, c.SubscriptionPlan, c.TLSFingerprintProfile,
 		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
 		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
-		c.UserSubscription,
+		c.UserSubscription, c.Withdrawal,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -560,6 +566,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.UserPlatformQuota.mutate(ctx, m)
 	case *UserSubscriptionMutation:
 		return c.UserSubscription.mutate(ctx, m)
+	case *WithdrawalMutation:
+		return c.Withdrawal.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -7406,6 +7414,139 @@ func (c *UserSubscriptionClient) mutate(ctx context.Context, m *UserSubscription
 	}
 }
 
+// WithdrawalClient is a client for the Withdrawal schema.
+type WithdrawalClient struct {
+	config
+}
+
+// NewWithdrawalClient returns a client for the Withdrawal from the given config.
+func NewWithdrawalClient(c config) *WithdrawalClient {
+	return &WithdrawalClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `withdrawal.Hooks(f(g(h())))`.
+func (c *WithdrawalClient) Use(hooks ...Hook) {
+	c.hooks.Withdrawal = append(c.hooks.Withdrawal, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `withdrawal.Intercept(f(g(h())))`.
+func (c *WithdrawalClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Withdrawal = append(c.inters.Withdrawal, interceptors...)
+}
+
+// Create returns a builder for creating a Withdrawal entity.
+func (c *WithdrawalClient) Create() *WithdrawalCreate {
+	mutation := newWithdrawalMutation(c.config, OpCreate)
+	return &WithdrawalCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Withdrawal entities.
+func (c *WithdrawalClient) CreateBulk(builders ...*WithdrawalCreate) *WithdrawalCreateBulk {
+	return &WithdrawalCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WithdrawalClient) MapCreateBulk(slice any, setFunc func(*WithdrawalCreate, int)) *WithdrawalCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WithdrawalCreateBulk{err: fmt.Errorf("calling to WithdrawalClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WithdrawalCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WithdrawalCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Withdrawal.
+func (c *WithdrawalClient) Update() *WithdrawalUpdate {
+	mutation := newWithdrawalMutation(c.config, OpUpdate)
+	return &WithdrawalUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WithdrawalClient) UpdateOne(_m *Withdrawal) *WithdrawalUpdateOne {
+	mutation := newWithdrawalMutation(c.config, OpUpdateOne, withWithdrawal(_m))
+	return &WithdrawalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WithdrawalClient) UpdateOneID(id int64) *WithdrawalUpdateOne {
+	mutation := newWithdrawalMutation(c.config, OpUpdateOne, withWithdrawalID(id))
+	return &WithdrawalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Withdrawal.
+func (c *WithdrawalClient) Delete() *WithdrawalDelete {
+	mutation := newWithdrawalMutation(c.config, OpDelete)
+	return &WithdrawalDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WithdrawalClient) DeleteOne(_m *Withdrawal) *WithdrawalDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WithdrawalClient) DeleteOneID(id int64) *WithdrawalDeleteOne {
+	builder := c.Delete().Where(withdrawal.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WithdrawalDeleteOne{builder}
+}
+
+// Query returns a query builder for Withdrawal.
+func (c *WithdrawalClient) Query() *WithdrawalQuery {
+	return &WithdrawalQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWithdrawal},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Withdrawal entity by its id.
+func (c *WithdrawalClient) Get(ctx context.Context, id int64) (*Withdrawal, error) {
+	return c.Query().Where(withdrawal.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WithdrawalClient) GetX(ctx context.Context, id int64) *Withdrawal {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *WithdrawalClient) Hooks() []Hook {
+	return c.hooks.Withdrawal
+}
+
+// Interceptors returns the client interceptors.
+func (c *WithdrawalClient) Interceptors() []Interceptor {
+	return c.inters.Withdrawal
+}
+
+func (c *WithdrawalClient) mutate(ctx context.Context, m *WithdrawalMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WithdrawalCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WithdrawalUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WithdrawalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WithdrawalDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Withdrawal mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
@@ -7418,7 +7559,7 @@ type (
 		PromoCode, PromoCodeUsage, Proxy, RedeemCode, RequestMetric, SecuritySecret,
 		Setting, Settlement, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
 		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserPlatformQuota, UserSubscription []ent.Hook
+		UserPlatformQuota, UserSubscription, Withdrawal []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
@@ -7430,7 +7571,7 @@ type (
 		PromoCode, PromoCodeUsage, Proxy, RedeemCode, RequestMetric, SecuritySecret,
 		Setting, Settlement, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
 		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserPlatformQuota, UserSubscription []ent.Interceptor
+		UserPlatformQuota, UserSubscription, Withdrawal []ent.Interceptor
 	}
 )
 

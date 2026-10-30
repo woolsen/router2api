@@ -133,6 +133,9 @@ func RegisterAdminRoutes(
 		// 入驻商户（中转站）管理
 		registerMerchantRoutes(admin, h)
 
+		// 商户提现审核与打款
+		registerWithdrawalRoutes(admin, h)
+
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
 	}
@@ -162,6 +165,16 @@ func registerMerchantRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		merchants.GET("/:id", h.Admin.Merchant.Get)
 		merchants.POST("/:id/groups", h.Admin.Merchant.AttachGroup)
 		merchants.PATCH("/:id/commission", h.Admin.Merchant.UpdateCommission)
+	}
+}
+
+func registerWithdrawalRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	withdrawals := admin.Group("/withdrawals")
+	{
+		withdrawals.GET("", h.Admin.Withdrawal.List)
+		withdrawals.POST("/:id/approve", h.Admin.Withdrawal.Approve)
+		withdrawals.POST("/:id/reject", h.Admin.Withdrawal.Reject)
+		withdrawals.POST("/:id/pay", h.Admin.Withdrawal.Pay)
 	}
 }
 
