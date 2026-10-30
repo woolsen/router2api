@@ -435,9 +435,20 @@ func ProvideProxyExpiryService(proxyRepo ProxyRepository) *ProxyExpiryService {
 	return svc
 }
 
+// ProvideSettlementOps creates the settlement state-machine service.
+func ProvideSettlementOps(repo SettlementOpsRepository) *SettlementOps {
+	return NewSettlementOps(repo)
+}
+
 // ProvideSettlementService creates and starts SettlementService（每周结算已封账的自然周）.
-func ProvideSettlementService(settlementRepo SettlementRepository, cfg *config.Config) *SettlementService {
+// 同一个每小时 ticker 也负责把超过 7 天申诉窗口的 pending 结算单自动确认。
+func ProvideSettlementService(
+	settlementRepo SettlementRepository,
+	settlementOps *SettlementOps,
+	cfg *config.Config,
+) *SettlementService {
 	svc := NewSettlementService(settlementRepo, cfg)
+	svc.SetAutoConfirmer(settlementOps)
 	svc.Start()
 	return svc
 }
@@ -978,6 +989,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAICodexVersionSyncService,
 	ProvideClaudeCodeVersionSyncService,
 	ProvideProxyExpiryService,
+	ProvideSettlementOps,
 	ProvideSettlementService,
 	ProvideMetricsService,
 	ProvideMetricsAggregator,

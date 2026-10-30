@@ -8,9 +8,9 @@ import (
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/require"
 	dbent "github.com/woolsen/router2api/ent"
 	"github.com/woolsen/router2api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 // 结算口径是这一任务最容易出错的地方：SQL 里任何一条过滤条件丢了都会多付/少付，
@@ -87,7 +87,8 @@ func TestSettlementRepositoryListSettledPeriodStarts(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-// 同一账期重跑时，ON CONFLICT DO NOTHING + 回读已存在行，金额不被覆盖。
+// 同一账期重跑时，ON CONFLICT DO NOTHING + 回读已存在行，金额不被覆盖；
+// 明细写入与建单在同一事务，靠唯一索引保证幂等。
 func TestSettlementRepositoryCreateOrGetReturnsExistingOnConflict(t *testing.T) {
 	db, mock := newSQLMock(t)
 	drv := entsql.OpenDB(dialect.Postgres, db)
@@ -98,17 +99,20 @@ func TestSettlementRepositoryCreateOrGetReturnsExistingOnConflict(t *testing.T) 
 	from := time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 3, 9, 0, 0, 0, 0, time.UTC)
 	now := time.Date(2026, 3, 9, 0, 0, 1, 0, time.UTC)
+	deadline := now.Add(service.SettlementDisputeWindow)
 
-	mock.ExpectQuery(`(?s)INSERT INTO "settlements".*ON CONFLICT .*DO NOTHING RETURNING "id"`).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}))
-
-	mock.ExpectQuery(`(?s)SELECT .* FROM "settlements" WHERE .*`).
-		WithArgs(int64(1), from, to).
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)WITH inserted AS \(\s+INSERT INTO settlements .*ON CONFLICT .*DO NOTHING\s+RETURNING id, merchant_id.*\)\s+SELECT id, merchant_id.*FROM inserted\s+UNION ALL\s+SELECT id, merchant_id.*FROM settlements.*NOT EXISTS`).
+		WithArgs(int64(1), from, to, 999.0, 999.0, 999.0, service.SettlementStatusPending).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "merchant_id", "period_start", "period_end",
 			"gross_cost", "commission", "net_payable", "status",
-			"created_at", "updated_at",
-		}).AddRow(int64(9), int64(1), from, to, 35.0, 2.8, 32.2, service.SettlementStatusPending, now, now))
+			"created_at", "updated_at", "confirmed_at", "paid_at", "dispute_deadline",
+		}).AddRow(int64(9), int64(1), from, to, 35.0, 2.8, 32.2, service.SettlementStatusPending, now, now, nil, nil, deadline))
+	mock.ExpectExec(`(?s)INSERT INTO settlement_items .*ON CONFLICT \(settlement_id, usage_log_id\) DO NOTHING`).
+		WithArgs(int64(9), int64(1), from, to, int64(service.BillingTypeBalance)).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectCommit()
 
 	got, err := repo.CreateOrGet(context.Background(), &service.Settlement{
 		MerchantID:  1,
@@ -123,5 +127,7 @@ func TestSettlementRepositoryCreateOrGetReturnsExistingOnConflict(t *testing.T) 
 	require.Equal(t, int64(9), got.ID)
 	require.InDelta(t, 35, got.GrossCost, 1e-9)
 	require.InDelta(t, 32.2, got.NetPayable, 1e-9)
+	require.NotNil(t, got.DisputeDeadline)
+	require.True(t, got.DisputeDeadline.Equal(deadline))
 	require.NoError(t, mock.ExpectationsWereMet())
 }

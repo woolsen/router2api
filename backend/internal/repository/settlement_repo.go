@@ -4,12 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
-	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/woolsen/router2api/ent"
 	"github.com/woolsen/router2api/ent/merchant"
-	"github.com/woolsen/router2api/ent/settlement"
 	"github.com/woolsen/router2api/internal/service"
 )
 
@@ -51,9 +50,48 @@ FROM settlements
 WHERE merchant_id = $1
 ORDER BY period_start`
 
+// settlementColumns 是 service.Settlement 的完整读取列，顺序必须与 settlementScanDest 一致。
+const settlementColumns = `id, merchant_id, period_start, period_end, gross_cost, commission,
+net_payable, status, created_at, updated_at, confirmed_at, paid_at, dispute_deadline`
+
+// settlementItemsInsertQuery 把账期内可结算用量逐条写入明细。
+// 过滤条件必须与 settlementAggregateQuery 保持一致，否则明细与汇总金额会漂移。
+const settlementItemsInsertQuery = `
+INSERT INTO settlement_items (settlement_id, usage_log_id, cost, commission)
+SELECT $1, id, actual_cost, actual_cost * commission_rate
+FROM usage_logs
+WHERE merchant_id = $2
+  AND created_at >= $3
+  AND created_at < $4
+  AND actual_cost > 0
+  AND billing_type = $5
+  AND commission_rate IS NOT NULL
+ON CONFLICT (settlement_id, usage_log_id) DO NOTHING`
+
+// settlementCreateOrGetQuery 幂等建单：唯一索引冲突时回读已存在行，不覆盖已封账金额。
+// created_at / dispute_deadline 使用数据库默认值，保证 deadline 严格等于 created_at + 7 days。
+const settlementCreateOrGetQuery = `
+WITH inserted AS (
+    INSERT INTO settlements (merchant_id, period_start, period_end, gross_cost, commission, net_payable, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ON CONFLICT (merchant_id, period_start, period_end) DO NOTHING
+    RETURNING ` + settlementColumns + `
+)
+SELECT ` + settlementColumns + ` FROM inserted
+UNION ALL
+SELECT ` + settlementColumns + ` FROM settlements
+WHERE merchant_id = $1 AND period_start = $2 AND period_end = $3
+  AND NOT EXISTS (SELECT 1 FROM inserted)
+LIMIT 1`
+
+type sqlBeginner interface {
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
 type settlementRepository struct {
 	client *dbent.Client
 	sql    sqlExecutor
+	db     sqlBeginner
 }
 
 func NewSettlementRepository(client *dbent.Client, sqlDB *sql.DB) service.SettlementRepository {
@@ -61,7 +99,11 @@ func NewSettlementRepository(client *dbent.Client, sqlDB *sql.DB) service.Settle
 }
 
 func newSettlementRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *settlementRepository {
-	return &settlementRepository{client: client, sql: sqlq}
+	repo := &settlementRepository{client: client, sql: sqlq}
+	if beginner, ok := sqlq.(sqlBeginner); ok {
+		repo.db = beginner
+	}
+	return repo
 }
 
 func (r *settlementRepository) AggregateUsage(
@@ -81,41 +123,59 @@ func (r *settlementRepository) AggregateUsage(
 }
 
 func (r *settlementRepository) CreateOrGet(ctx context.Context, s *service.Settlement) (*service.Settlement, error) {
-	client := clientFromContext(ctx, r.client)
-
-	// 唯一索引兜底；并发/重跑时 ON CONFLICT DO NOTHING 不覆盖已封账金额。
-	// DO NOTHING 命中冲突时没有 RETURNING 行，ent 以 sql.ErrNoRows 表达；
-	// 这不是失败，随后回读已存在的那一行。
-	err := client.Settlement.Create().
-		SetMerchantID(s.MerchantID).
-		SetPeriodStart(s.PeriodStart).
-		SetPeriodEnd(s.PeriodEnd).
-		SetGrossCost(s.GrossCost).
-		SetCommission(s.Commission).
-		SetNetPayable(s.NetPayable).
-		SetStatus(s.Status).
-		OnConflict(entsql.ConflictColumns(
-			settlement.FieldMerchantID,
-			settlement.FieldPeriodStart,
-			settlement.FieldPeriodEnd,
-		)).
-		DoNothing().
-		Exec(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("settlement repository is not transactional")
+	}
+	if s == nil {
+		return nil, fmt.Errorf("nil settlement")
 	}
 
-	existing, err := client.Settlement.Query().
-		Where(
-			settlement.MerchantIDEQ(s.MerchantID),
-			settlement.PeriodStartEQ(s.PeriodStart),
-			settlement.PeriodEndEQ(s.PeriodEnd),
-		).
-		Only(ctx)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	return settlementEntityToService(existing), nil
+	defer func() { _ = tx.Rollback() }()
+
+	var out service.Settlement
+	var createdAt, updatedAt time.Time
+	err = scanSingleRow(ctx, tx, settlementCreateOrGetQuery,
+		[]any{
+			s.MerchantID,
+			s.PeriodStart.UTC(),
+			s.PeriodEnd.UTC(),
+			s.GrossCost,
+			s.Commission,
+			s.NetPayable,
+			s.Status,
+		},
+		&out.ID,
+		&out.MerchantID,
+		&out.PeriodStart,
+		&out.PeriodEnd,
+		&out.GrossCost,
+		&out.Commission,
+		&out.NetPayable,
+		&out.Status,
+		&createdAt,
+		&updatedAt,
+		&out.ConfirmedAt,
+		&out.PaidAt,
+		&out.DisputeDeadline,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// 明细写入与建单同一事务；已存在的老结算单也会补齐（ON CONFLICT DO NOTHING 幂等）。
+	if _, err := tx.ExecContext(ctx, settlementItemsInsertQuery,
+		out.ID, out.MerchantID, out.PeriodStart.UTC(), out.PeriodEnd.UTC(), service.BillingTypeBalance,
+	); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (r *settlementRepository) ListActiveMerchantIDs(ctx context.Context) ([]int64, error) {
@@ -163,20 +223,4 @@ func (r *settlementRepository) ListSettledPeriodStarts(ctx context.Context, merc
 		return nil, err
 	}
 	return starts, nil
-}
-
-func settlementEntityToService(s *dbent.Settlement) *service.Settlement {
-	if s == nil {
-		return nil
-	}
-	return &service.Settlement{
-		ID:          s.ID,
-		MerchantID:  s.MerchantID,
-		PeriodStart: s.PeriodStart,
-		PeriodEnd:   s.PeriodEnd,
-		GrossCost:   s.GrossCost,
-		Commission:  s.Commission,
-		NetPayable:  s.NetPayable,
-		Status:      s.Status,
-	}
 }

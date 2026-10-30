@@ -49,7 +49,7 @@ func (Settlement) Fields() []ent.Field {
 		field.String("status").
 			MaxLen(20).
 			Default("pending").
-			Comment("状态：pending 待确认，confirmed 已确认，paid 已打款"),
+			Comment("状态：pending 待确认，confirmed 已确认，disputed 申诉中，paid 已打款"),
 		field.Time("created_at").
 			Default(time.Now).
 			Immutable().

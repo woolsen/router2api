@@ -16,8 +16,14 @@ const (
 	SettlementStatusPending = "pending"
 	// SettlementStatusConfirmed 商户已确认，等待打款。
 	SettlementStatusConfirmed = "confirmed"
+	// SettlementStatusDisputed 商户申诉中，裁决完成前不得确认或打款。
+	SettlementStatusDisputed = "disputed"
 	// SettlementStatusPaid 已打款，终态。
 	SettlementStatusPaid = "paid"
+
+	// SettlementDisputeWindow 是结算单生成后的申诉窗口。
+	// 窗口结束仍未申诉的 pending 结算单由每小时任务自动确认。
+	SettlementDisputeWindow = 7 * 24 * time.Hour
 
 	// SettlementCloseDelay 是账期结束后的封账冷却期。
 	// usage_logs 异步 best-effort 落库，只有 now >= period_end + 24h 才允许生成该期；
@@ -47,14 +53,17 @@ var (
 
 // Settlement 是商户的周结算应付单。
 type Settlement struct {
-	ID          int64
-	MerchantID  int64
-	PeriodStart time.Time
-	PeriodEnd   time.Time
-	GrossCost   float64
-	Commission  float64
-	NetPayable  float64
-	Status      string
+	ID              int64
+	MerchantID      int64
+	PeriodStart     time.Time
+	PeriodEnd       time.Time
+	GrossCost       float64
+	Commission      float64
+	NetPayable      float64
+	Status          string
+	ConfirmedAt     *time.Time
+	PaidAt          *time.Time
+	DisputeDeadline *time.Time
 }
 
 // CanAppeal 表示当前状态下是否还允许商户申诉。
@@ -65,16 +74,20 @@ func (s *Settlement) CanAppeal() bool {
 	return s.Status == SettlementStatusPending || s.Status == SettlementStatusConfirmed
 }
 
-// CanTransitionTo 校验状态机：pending → confirmed → paid，不允许跳级或回退。
+// CanTransitionTo 校验状态机：
+// pending → confirmed/disputed，confirmed → paid/disputed，disputed → confirmed；
+// paid 是终态，不允许跳级或回退。
 func (s *Settlement) CanTransitionTo(next string) bool {
 	if s == nil {
 		return false
 	}
 	switch s.Status {
 	case SettlementStatusPending:
-		return next == SettlementStatusConfirmed
+		return next == SettlementStatusConfirmed || next == SettlementStatusDisputed
 	case SettlementStatusConfirmed:
-		return next == SettlementStatusPaid
+		return next == SettlementStatusPaid || next == SettlementStatusDisputed
+	case SettlementStatusDisputed:
+		return next == SettlementStatusConfirmed
 	default:
 		return false
 	}
@@ -112,12 +125,19 @@ type SettlementRepository interface {
 	ListSettledPeriodStarts(ctx context.Context, merchantID int64) ([]time.Time, error)
 }
 
+// SettlementAutoConfirmer 是结算单自动确认任务。
+// 由 SettlementService 的每小时 ticker 触发，避免再起一条独立调度。
+type SettlementAutoConfirmer interface {
+	AutoConfirmExpired(ctx context.Context) (int, error)
+}
+
 // SettlementService 负责按账期聚合用量并生成结算单。
 type SettlementService struct {
-	repo     SettlementRepository
-	cfg      *config.Config
-	interval time.Duration
-	now      func() time.Time
+	repo          SettlementRepository
+	autoConfirmer SettlementAutoConfirmer
+	cfg           *config.Config
+	interval      time.Duration
+	now           func() time.Time
 
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -131,6 +151,13 @@ func NewSettlementService(repo SettlementRepository, cfg *config.Config) *Settle
 		interval: time.Hour,
 		now:      time.Now,
 		stopCh:   make(chan struct{}),
+	}
+}
+
+// SetAutoConfirmer 挂上过期结算单自动确认任务；允许为 nil（测试或简化部署）。
+func (s *SettlementService) SetAutoConfirmer(c SettlementAutoConfirmer) {
+	if s != nil {
+		s.autoConfirmer = c
 	}
 }
 
@@ -220,6 +247,20 @@ func (s *SettlementService) Stop() {
 // runOnce 为每个活跃商户补齐从最早未结算周到最后一个可封账周的结算单。
 // 单个商户失败只影响该商户，下一 tick 会从它最早的未结算周继续重试。
 func (s *SettlementService) runOnce() {
+	// 自动确认与生成是两条独立流程：即使当前是 simple 模式（不生成新单），
+	// 历史上已存在的 pending 结算单仍应按 7 天窗口自动确认。
+	// 两者使用独立超时，避免确认积压拖垮本周的结算生成。
+	if s.autoConfirmer != nil {
+		autoCtx, autoCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		n, err := s.autoConfirmer.AutoConfirmExpired(autoCtx)
+		autoCancel()
+		if err != nil {
+			log.Printf("[Settlement] auto-confirm expired settlements failed: %v", err)
+		} else if n > 0 {
+			log.Printf("[Settlement] auto-confirmed %d expired settlement(s)", n)
+		}
+	}
+
 	if s.simpleMode() {
 		log.Printf("[Settlement] ERROR: refusing to generate settlements: run_mode=simple does not charge usage; market mode requires run_mode=standard")
 		return

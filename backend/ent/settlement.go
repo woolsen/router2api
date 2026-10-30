@@ -29,7 +29,7 @@ type Settlement struct {
 	Commission float64 `json:"commission,omitempty"`
 	// 应付商户金额 = gross - commission
 	NetPayable float64 `json:"net_payable,omitempty"`
-	// 状态：pending 待确认，confirmed 已确认，paid 已打款
+	// 状态：pending 待确认，confirmed 已确认，disputed 申诉中，paid 已打款
 	Status string `json:"status,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
