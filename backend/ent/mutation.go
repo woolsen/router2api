@@ -29,6 +29,7 @@ import (
 	"github.com/woolsen/router2api/ent/compositemodelroute"
 	"github.com/woolsen/router2api/ent/errorpassthroughrule"
 	"github.com/woolsen/router2api/ent/group"
+	"github.com/woolsen/router2api/ent/groupmetric"
 	"github.com/woolsen/router2api/ent/idempotencyrecord"
 	"github.com/woolsen/router2api/ent/identityadoptiondecision"
 	"github.com/woolsen/router2api/ent/merchant"
@@ -84,6 +85,7 @@ const (
 	TypeCompositeModelRoute           = "CompositeModelRoute"
 	TypeErrorPassthroughRule          = "ErrorPassthroughRule"
 	TypeGroup                         = "Group"
+	TypeGroupMetric                   = "GroupMetric"
 	TypeIdempotencyRecord             = "IdempotencyRecord"
 	TypeIdentityAdoptionDecision      = "IdentityAdoptionDecision"
 	TypeMerchant                      = "Merchant"
@@ -28125,6 +28127,1400 @@ func (m *GroupMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Group edge %s", name)
+}
+
+// GroupMetricMutation represents an operation that mutates the GroupMetric nodes in the graph.
+type GroupMetricMutation struct {
+	config
+	op                       Op
+	typ                      string
+	id                       *int64
+	created_at               *time.Time
+	updated_at               *time.Time
+	group_id                 *int64
+	addgroup_id              *int64
+	hour                     *time.Time
+	requests                 *int
+	addrequests              *int
+	upstream_failures        *int
+	addupstream_failures     *int
+	request_errors           *int
+	addrequest_errors        *int
+	ttft_samples             *int
+	addttft_samples          *int
+	input_tokens             *int64
+	addinput_tokens          *int64
+	cache_read_tokens        *int64
+	addcache_read_tokens     *int64
+	cache_creation_tokens    *int64
+	addcache_creation_tokens *int64
+	p50_ttft                 *float64
+	addp50_ttft              *float64
+	p95_ttft                 *float64
+	addp95_ttft              *float64
+	cache_hit_rate           *float64
+	addcache_hit_rate        *float64
+	clearedFields            map[string]struct{}
+	done                     bool
+	oldValue                 func(context.Context) (*GroupMetric, error)
+	predicates               []predicate.GroupMetric
+}
+
+var _ ent.Mutation = (*GroupMetricMutation)(nil)
+
+// groupmetricOption allows management of the mutation configuration using functional options.
+type groupmetricOption func(*GroupMetricMutation)
+
+// newGroupMetricMutation creates new mutation for the GroupMetric entity.
+func newGroupMetricMutation(c config, op Op, opts ...groupmetricOption) *GroupMetricMutation {
+	m := &GroupMetricMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeGroupMetric,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withGroupMetricID sets the ID field of the mutation.
+func withGroupMetricID(id int64) groupmetricOption {
+	return func(m *GroupMetricMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *GroupMetric
+		)
+		m.oldValue = func(ctx context.Context) (*GroupMetric, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().GroupMetric.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withGroupMetric sets the old GroupMetric of the mutation.
+func withGroupMetric(node *GroupMetric) groupmetricOption {
+	return func(m *GroupMetricMutation) {
+		m.oldValue = func(context.Context) (*GroupMetric, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m GroupMetricMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m GroupMetricMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *GroupMetricMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *GroupMetricMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().GroupMetric.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *GroupMetricMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *GroupMetricMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *GroupMetricMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *GroupMetricMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *GroupMetricMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *GroupMetricMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetGroupID sets the "group_id" field.
+func (m *GroupMetricMutation) SetGroupID(i int64) {
+	m.group_id = &i
+	m.addgroup_id = nil
+}
+
+// GroupID returns the value of the "group_id" field in the mutation.
+func (m *GroupMetricMutation) GroupID() (r int64, exists bool) {
+	v := m.group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupID returns the old "group_id" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldGroupID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupID: %w", err)
+	}
+	return oldValue.GroupID, nil
+}
+
+// AddGroupID adds i to the "group_id" field.
+func (m *GroupMetricMutation) AddGroupID(i int64) {
+	if m.addgroup_id != nil {
+		*m.addgroup_id += i
+	} else {
+		m.addgroup_id = &i
+	}
+}
+
+// AddedGroupID returns the value that was added to the "group_id" field in this mutation.
+func (m *GroupMetricMutation) AddedGroupID() (r int64, exists bool) {
+	v := m.addgroup_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGroupID resets all changes to the "group_id" field.
+func (m *GroupMetricMutation) ResetGroupID() {
+	m.group_id = nil
+	m.addgroup_id = nil
+}
+
+// SetHour sets the "hour" field.
+func (m *GroupMetricMutation) SetHour(t time.Time) {
+	m.hour = &t
+}
+
+// Hour returns the value of the "hour" field in the mutation.
+func (m *GroupMetricMutation) Hour() (r time.Time, exists bool) {
+	v := m.hour
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHour returns the old "hour" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldHour(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHour is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHour requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHour: %w", err)
+	}
+	return oldValue.Hour, nil
+}
+
+// ResetHour resets all changes to the "hour" field.
+func (m *GroupMetricMutation) ResetHour() {
+	m.hour = nil
+}
+
+// SetRequests sets the "requests" field.
+func (m *GroupMetricMutation) SetRequests(i int) {
+	m.requests = &i
+	m.addrequests = nil
+}
+
+// Requests returns the value of the "requests" field in the mutation.
+func (m *GroupMetricMutation) Requests() (r int, exists bool) {
+	v := m.requests
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequests returns the old "requests" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldRequests(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequests is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequests requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequests: %w", err)
+	}
+	return oldValue.Requests, nil
+}
+
+// AddRequests adds i to the "requests" field.
+func (m *GroupMetricMutation) AddRequests(i int) {
+	if m.addrequests != nil {
+		*m.addrequests += i
+	} else {
+		m.addrequests = &i
+	}
+}
+
+// AddedRequests returns the value that was added to the "requests" field in this mutation.
+func (m *GroupMetricMutation) AddedRequests() (r int, exists bool) {
+	v := m.addrequests
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRequests resets all changes to the "requests" field.
+func (m *GroupMetricMutation) ResetRequests() {
+	m.requests = nil
+	m.addrequests = nil
+}
+
+// SetUpstreamFailures sets the "upstream_failures" field.
+func (m *GroupMetricMutation) SetUpstreamFailures(i int) {
+	m.upstream_failures = &i
+	m.addupstream_failures = nil
+}
+
+// UpstreamFailures returns the value of the "upstream_failures" field in the mutation.
+func (m *GroupMetricMutation) UpstreamFailures() (r int, exists bool) {
+	v := m.upstream_failures
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamFailures returns the old "upstream_failures" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldUpstreamFailures(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamFailures is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamFailures requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamFailures: %w", err)
+	}
+	return oldValue.UpstreamFailures, nil
+}
+
+// AddUpstreamFailures adds i to the "upstream_failures" field.
+func (m *GroupMetricMutation) AddUpstreamFailures(i int) {
+	if m.addupstream_failures != nil {
+		*m.addupstream_failures += i
+	} else {
+		m.addupstream_failures = &i
+	}
+}
+
+// AddedUpstreamFailures returns the value that was added to the "upstream_failures" field in this mutation.
+func (m *GroupMetricMutation) AddedUpstreamFailures() (r int, exists bool) {
+	v := m.addupstream_failures
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUpstreamFailures resets all changes to the "upstream_failures" field.
+func (m *GroupMetricMutation) ResetUpstreamFailures() {
+	m.upstream_failures = nil
+	m.addupstream_failures = nil
+}
+
+// SetRequestErrors sets the "request_errors" field.
+func (m *GroupMetricMutation) SetRequestErrors(i int) {
+	m.request_errors = &i
+	m.addrequest_errors = nil
+}
+
+// RequestErrors returns the value of the "request_errors" field in the mutation.
+func (m *GroupMetricMutation) RequestErrors() (r int, exists bool) {
+	v := m.request_errors
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestErrors returns the old "request_errors" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldRequestErrors(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestErrors is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestErrors requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestErrors: %w", err)
+	}
+	return oldValue.RequestErrors, nil
+}
+
+// AddRequestErrors adds i to the "request_errors" field.
+func (m *GroupMetricMutation) AddRequestErrors(i int) {
+	if m.addrequest_errors != nil {
+		*m.addrequest_errors += i
+	} else {
+		m.addrequest_errors = &i
+	}
+}
+
+// AddedRequestErrors returns the value that was added to the "request_errors" field in this mutation.
+func (m *GroupMetricMutation) AddedRequestErrors() (r int, exists bool) {
+	v := m.addrequest_errors
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRequestErrors resets all changes to the "request_errors" field.
+func (m *GroupMetricMutation) ResetRequestErrors() {
+	m.request_errors = nil
+	m.addrequest_errors = nil
+}
+
+// SetTtftSamples sets the "ttft_samples" field.
+func (m *GroupMetricMutation) SetTtftSamples(i int) {
+	m.ttft_samples = &i
+	m.addttft_samples = nil
+}
+
+// TtftSamples returns the value of the "ttft_samples" field in the mutation.
+func (m *GroupMetricMutation) TtftSamples() (r int, exists bool) {
+	v := m.ttft_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTtftSamples returns the old "ttft_samples" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldTtftSamples(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTtftSamples is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTtftSamples requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTtftSamples: %w", err)
+	}
+	return oldValue.TtftSamples, nil
+}
+
+// AddTtftSamples adds i to the "ttft_samples" field.
+func (m *GroupMetricMutation) AddTtftSamples(i int) {
+	if m.addttft_samples != nil {
+		*m.addttft_samples += i
+	} else {
+		m.addttft_samples = &i
+	}
+}
+
+// AddedTtftSamples returns the value that was added to the "ttft_samples" field in this mutation.
+func (m *GroupMetricMutation) AddedTtftSamples() (r int, exists bool) {
+	v := m.addttft_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTtftSamples resets all changes to the "ttft_samples" field.
+func (m *GroupMetricMutation) ResetTtftSamples() {
+	m.ttft_samples = nil
+	m.addttft_samples = nil
+}
+
+// SetInputTokens sets the "input_tokens" field.
+func (m *GroupMetricMutation) SetInputTokens(i int64) {
+	m.input_tokens = &i
+	m.addinput_tokens = nil
+}
+
+// InputTokens returns the value of the "input_tokens" field in the mutation.
+func (m *GroupMetricMutation) InputTokens() (r int64, exists bool) {
+	v := m.input_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInputTokens returns the old "input_tokens" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldInputTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInputTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInputTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInputTokens: %w", err)
+	}
+	return oldValue.InputTokens, nil
+}
+
+// AddInputTokens adds i to the "input_tokens" field.
+func (m *GroupMetricMutation) AddInputTokens(i int64) {
+	if m.addinput_tokens != nil {
+		*m.addinput_tokens += i
+	} else {
+		m.addinput_tokens = &i
+	}
+}
+
+// AddedInputTokens returns the value that was added to the "input_tokens" field in this mutation.
+func (m *GroupMetricMutation) AddedInputTokens() (r int64, exists bool) {
+	v := m.addinput_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetInputTokens resets all changes to the "input_tokens" field.
+func (m *GroupMetricMutation) ResetInputTokens() {
+	m.input_tokens = nil
+	m.addinput_tokens = nil
+}
+
+// SetCacheReadTokens sets the "cache_read_tokens" field.
+func (m *GroupMetricMutation) SetCacheReadTokens(i int64) {
+	m.cache_read_tokens = &i
+	m.addcache_read_tokens = nil
+}
+
+// CacheReadTokens returns the value of the "cache_read_tokens" field in the mutation.
+func (m *GroupMetricMutation) CacheReadTokens() (r int64, exists bool) {
+	v := m.cache_read_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheReadTokens returns the old "cache_read_tokens" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldCacheReadTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheReadTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheReadTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheReadTokens: %w", err)
+	}
+	return oldValue.CacheReadTokens, nil
+}
+
+// AddCacheReadTokens adds i to the "cache_read_tokens" field.
+func (m *GroupMetricMutation) AddCacheReadTokens(i int64) {
+	if m.addcache_read_tokens != nil {
+		*m.addcache_read_tokens += i
+	} else {
+		m.addcache_read_tokens = &i
+	}
+}
+
+// AddedCacheReadTokens returns the value that was added to the "cache_read_tokens" field in this mutation.
+func (m *GroupMetricMutation) AddedCacheReadTokens() (r int64, exists bool) {
+	v := m.addcache_read_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCacheReadTokens resets all changes to the "cache_read_tokens" field.
+func (m *GroupMetricMutation) ResetCacheReadTokens() {
+	m.cache_read_tokens = nil
+	m.addcache_read_tokens = nil
+}
+
+// SetCacheCreationTokens sets the "cache_creation_tokens" field.
+func (m *GroupMetricMutation) SetCacheCreationTokens(i int64) {
+	m.cache_creation_tokens = &i
+	m.addcache_creation_tokens = nil
+}
+
+// CacheCreationTokens returns the value of the "cache_creation_tokens" field in the mutation.
+func (m *GroupMetricMutation) CacheCreationTokens() (r int64, exists bool) {
+	v := m.cache_creation_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheCreationTokens returns the old "cache_creation_tokens" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldCacheCreationTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheCreationTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheCreationTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheCreationTokens: %w", err)
+	}
+	return oldValue.CacheCreationTokens, nil
+}
+
+// AddCacheCreationTokens adds i to the "cache_creation_tokens" field.
+func (m *GroupMetricMutation) AddCacheCreationTokens(i int64) {
+	if m.addcache_creation_tokens != nil {
+		*m.addcache_creation_tokens += i
+	} else {
+		m.addcache_creation_tokens = &i
+	}
+}
+
+// AddedCacheCreationTokens returns the value that was added to the "cache_creation_tokens" field in this mutation.
+func (m *GroupMetricMutation) AddedCacheCreationTokens() (r int64, exists bool) {
+	v := m.addcache_creation_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCacheCreationTokens resets all changes to the "cache_creation_tokens" field.
+func (m *GroupMetricMutation) ResetCacheCreationTokens() {
+	m.cache_creation_tokens = nil
+	m.addcache_creation_tokens = nil
+}
+
+// SetP50Ttft sets the "p50_ttft" field.
+func (m *GroupMetricMutation) SetP50Ttft(f float64) {
+	m.p50_ttft = &f
+	m.addp50_ttft = nil
+}
+
+// P50Ttft returns the value of the "p50_ttft" field in the mutation.
+func (m *GroupMetricMutation) P50Ttft() (r float64, exists bool) {
+	v := m.p50_ttft
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldP50Ttft returns the old "p50_ttft" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldP50Ttft(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldP50Ttft is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldP50Ttft requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldP50Ttft: %w", err)
+	}
+	return oldValue.P50Ttft, nil
+}
+
+// AddP50Ttft adds f to the "p50_ttft" field.
+func (m *GroupMetricMutation) AddP50Ttft(f float64) {
+	if m.addp50_ttft != nil {
+		*m.addp50_ttft += f
+	} else {
+		m.addp50_ttft = &f
+	}
+}
+
+// AddedP50Ttft returns the value that was added to the "p50_ttft" field in this mutation.
+func (m *GroupMetricMutation) AddedP50Ttft() (r float64, exists bool) {
+	v := m.addp50_ttft
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetP50Ttft resets all changes to the "p50_ttft" field.
+func (m *GroupMetricMutation) ResetP50Ttft() {
+	m.p50_ttft = nil
+	m.addp50_ttft = nil
+}
+
+// SetP95Ttft sets the "p95_ttft" field.
+func (m *GroupMetricMutation) SetP95Ttft(f float64) {
+	m.p95_ttft = &f
+	m.addp95_ttft = nil
+}
+
+// P95Ttft returns the value of the "p95_ttft" field in the mutation.
+func (m *GroupMetricMutation) P95Ttft() (r float64, exists bool) {
+	v := m.p95_ttft
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldP95Ttft returns the old "p95_ttft" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldP95Ttft(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldP95Ttft is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldP95Ttft requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldP95Ttft: %w", err)
+	}
+	return oldValue.P95Ttft, nil
+}
+
+// AddP95Ttft adds f to the "p95_ttft" field.
+func (m *GroupMetricMutation) AddP95Ttft(f float64) {
+	if m.addp95_ttft != nil {
+		*m.addp95_ttft += f
+	} else {
+		m.addp95_ttft = &f
+	}
+}
+
+// AddedP95Ttft returns the value that was added to the "p95_ttft" field in this mutation.
+func (m *GroupMetricMutation) AddedP95Ttft() (r float64, exists bool) {
+	v := m.addp95_ttft
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetP95Ttft resets all changes to the "p95_ttft" field.
+func (m *GroupMetricMutation) ResetP95Ttft() {
+	m.p95_ttft = nil
+	m.addp95_ttft = nil
+}
+
+// SetCacheHitRate sets the "cache_hit_rate" field.
+func (m *GroupMetricMutation) SetCacheHitRate(f float64) {
+	m.cache_hit_rate = &f
+	m.addcache_hit_rate = nil
+}
+
+// CacheHitRate returns the value of the "cache_hit_rate" field in the mutation.
+func (m *GroupMetricMutation) CacheHitRate() (r float64, exists bool) {
+	v := m.cache_hit_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheHitRate returns the old "cache_hit_rate" field's value of the GroupMetric entity.
+// If the GroupMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMetricMutation) OldCacheHitRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheHitRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheHitRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheHitRate: %w", err)
+	}
+	return oldValue.CacheHitRate, nil
+}
+
+// AddCacheHitRate adds f to the "cache_hit_rate" field.
+func (m *GroupMetricMutation) AddCacheHitRate(f float64) {
+	if m.addcache_hit_rate != nil {
+		*m.addcache_hit_rate += f
+	} else {
+		m.addcache_hit_rate = &f
+	}
+}
+
+// AddedCacheHitRate returns the value that was added to the "cache_hit_rate" field in this mutation.
+func (m *GroupMetricMutation) AddedCacheHitRate() (r float64, exists bool) {
+	v := m.addcache_hit_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCacheHitRate resets all changes to the "cache_hit_rate" field.
+func (m *GroupMetricMutation) ResetCacheHitRate() {
+	m.cache_hit_rate = nil
+	m.addcache_hit_rate = nil
+}
+
+// Where appends a list predicates to the GroupMetricMutation builder.
+func (m *GroupMetricMutation) Where(ps ...predicate.GroupMetric) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the GroupMetricMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *GroupMetricMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.GroupMetric, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *GroupMetricMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *GroupMetricMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (GroupMetric).
+func (m *GroupMetricMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *GroupMetricMutation) Fields() []string {
+	fields := make([]string, 0, 14)
+	if m.created_at != nil {
+		fields = append(fields, groupmetric.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, groupmetric.FieldUpdatedAt)
+	}
+	if m.group_id != nil {
+		fields = append(fields, groupmetric.FieldGroupID)
+	}
+	if m.hour != nil {
+		fields = append(fields, groupmetric.FieldHour)
+	}
+	if m.requests != nil {
+		fields = append(fields, groupmetric.FieldRequests)
+	}
+	if m.upstream_failures != nil {
+		fields = append(fields, groupmetric.FieldUpstreamFailures)
+	}
+	if m.request_errors != nil {
+		fields = append(fields, groupmetric.FieldRequestErrors)
+	}
+	if m.ttft_samples != nil {
+		fields = append(fields, groupmetric.FieldTtftSamples)
+	}
+	if m.input_tokens != nil {
+		fields = append(fields, groupmetric.FieldInputTokens)
+	}
+	if m.cache_read_tokens != nil {
+		fields = append(fields, groupmetric.FieldCacheReadTokens)
+	}
+	if m.cache_creation_tokens != nil {
+		fields = append(fields, groupmetric.FieldCacheCreationTokens)
+	}
+	if m.p50_ttft != nil {
+		fields = append(fields, groupmetric.FieldP50Ttft)
+	}
+	if m.p95_ttft != nil {
+		fields = append(fields, groupmetric.FieldP95Ttft)
+	}
+	if m.cache_hit_rate != nil {
+		fields = append(fields, groupmetric.FieldCacheHitRate)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *GroupMetricMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case groupmetric.FieldCreatedAt:
+		return m.CreatedAt()
+	case groupmetric.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case groupmetric.FieldGroupID:
+		return m.GroupID()
+	case groupmetric.FieldHour:
+		return m.Hour()
+	case groupmetric.FieldRequests:
+		return m.Requests()
+	case groupmetric.FieldUpstreamFailures:
+		return m.UpstreamFailures()
+	case groupmetric.FieldRequestErrors:
+		return m.RequestErrors()
+	case groupmetric.FieldTtftSamples:
+		return m.TtftSamples()
+	case groupmetric.FieldInputTokens:
+		return m.InputTokens()
+	case groupmetric.FieldCacheReadTokens:
+		return m.CacheReadTokens()
+	case groupmetric.FieldCacheCreationTokens:
+		return m.CacheCreationTokens()
+	case groupmetric.FieldP50Ttft:
+		return m.P50Ttft()
+	case groupmetric.FieldP95Ttft:
+		return m.P95Ttft()
+	case groupmetric.FieldCacheHitRate:
+		return m.CacheHitRate()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *GroupMetricMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case groupmetric.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case groupmetric.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case groupmetric.FieldGroupID:
+		return m.OldGroupID(ctx)
+	case groupmetric.FieldHour:
+		return m.OldHour(ctx)
+	case groupmetric.FieldRequests:
+		return m.OldRequests(ctx)
+	case groupmetric.FieldUpstreamFailures:
+		return m.OldUpstreamFailures(ctx)
+	case groupmetric.FieldRequestErrors:
+		return m.OldRequestErrors(ctx)
+	case groupmetric.FieldTtftSamples:
+		return m.OldTtftSamples(ctx)
+	case groupmetric.FieldInputTokens:
+		return m.OldInputTokens(ctx)
+	case groupmetric.FieldCacheReadTokens:
+		return m.OldCacheReadTokens(ctx)
+	case groupmetric.FieldCacheCreationTokens:
+		return m.OldCacheCreationTokens(ctx)
+	case groupmetric.FieldP50Ttft:
+		return m.OldP50Ttft(ctx)
+	case groupmetric.FieldP95Ttft:
+		return m.OldP95Ttft(ctx)
+	case groupmetric.FieldCacheHitRate:
+		return m.OldCacheHitRate(ctx)
+	}
+	return nil, fmt.Errorf("unknown GroupMetric field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GroupMetricMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case groupmetric.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case groupmetric.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case groupmetric.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupID(v)
+		return nil
+	case groupmetric.FieldHour:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHour(v)
+		return nil
+	case groupmetric.FieldRequests:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequests(v)
+		return nil
+	case groupmetric.FieldUpstreamFailures:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamFailures(v)
+		return nil
+	case groupmetric.FieldRequestErrors:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestErrors(v)
+		return nil
+	case groupmetric.FieldTtftSamples:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTtftSamples(v)
+		return nil
+	case groupmetric.FieldInputTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInputTokens(v)
+		return nil
+	case groupmetric.FieldCacheReadTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheReadTokens(v)
+		return nil
+	case groupmetric.FieldCacheCreationTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheCreationTokens(v)
+		return nil
+	case groupmetric.FieldP50Ttft:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetP50Ttft(v)
+		return nil
+	case groupmetric.FieldP95Ttft:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetP95Ttft(v)
+		return nil
+	case groupmetric.FieldCacheHitRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheHitRate(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GroupMetric field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *GroupMetricMutation) AddedFields() []string {
+	var fields []string
+	if m.addgroup_id != nil {
+		fields = append(fields, groupmetric.FieldGroupID)
+	}
+	if m.addrequests != nil {
+		fields = append(fields, groupmetric.FieldRequests)
+	}
+	if m.addupstream_failures != nil {
+		fields = append(fields, groupmetric.FieldUpstreamFailures)
+	}
+	if m.addrequest_errors != nil {
+		fields = append(fields, groupmetric.FieldRequestErrors)
+	}
+	if m.addttft_samples != nil {
+		fields = append(fields, groupmetric.FieldTtftSamples)
+	}
+	if m.addinput_tokens != nil {
+		fields = append(fields, groupmetric.FieldInputTokens)
+	}
+	if m.addcache_read_tokens != nil {
+		fields = append(fields, groupmetric.FieldCacheReadTokens)
+	}
+	if m.addcache_creation_tokens != nil {
+		fields = append(fields, groupmetric.FieldCacheCreationTokens)
+	}
+	if m.addp50_ttft != nil {
+		fields = append(fields, groupmetric.FieldP50Ttft)
+	}
+	if m.addp95_ttft != nil {
+		fields = append(fields, groupmetric.FieldP95Ttft)
+	}
+	if m.addcache_hit_rate != nil {
+		fields = append(fields, groupmetric.FieldCacheHitRate)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *GroupMetricMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case groupmetric.FieldGroupID:
+		return m.AddedGroupID()
+	case groupmetric.FieldRequests:
+		return m.AddedRequests()
+	case groupmetric.FieldUpstreamFailures:
+		return m.AddedUpstreamFailures()
+	case groupmetric.FieldRequestErrors:
+		return m.AddedRequestErrors()
+	case groupmetric.FieldTtftSamples:
+		return m.AddedTtftSamples()
+	case groupmetric.FieldInputTokens:
+		return m.AddedInputTokens()
+	case groupmetric.FieldCacheReadTokens:
+		return m.AddedCacheReadTokens()
+	case groupmetric.FieldCacheCreationTokens:
+		return m.AddedCacheCreationTokens()
+	case groupmetric.FieldP50Ttft:
+		return m.AddedP50Ttft()
+	case groupmetric.FieldP95Ttft:
+		return m.AddedP95Ttft()
+	case groupmetric.FieldCacheHitRate:
+		return m.AddedCacheHitRate()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GroupMetricMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case groupmetric.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGroupID(v)
+		return nil
+	case groupmetric.FieldRequests:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRequests(v)
+		return nil
+	case groupmetric.FieldUpstreamFailures:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUpstreamFailures(v)
+		return nil
+	case groupmetric.FieldRequestErrors:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRequestErrors(v)
+		return nil
+	case groupmetric.FieldTtftSamples:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTtftSamples(v)
+		return nil
+	case groupmetric.FieldInputTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddInputTokens(v)
+		return nil
+	case groupmetric.FieldCacheReadTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCacheReadTokens(v)
+		return nil
+	case groupmetric.FieldCacheCreationTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCacheCreationTokens(v)
+		return nil
+	case groupmetric.FieldP50Ttft:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddP50Ttft(v)
+		return nil
+	case groupmetric.FieldP95Ttft:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddP95Ttft(v)
+		return nil
+	case groupmetric.FieldCacheHitRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCacheHitRate(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GroupMetric numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *GroupMetricMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *GroupMetricMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *GroupMetricMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown GroupMetric nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *GroupMetricMutation) ResetField(name string) error {
+	switch name {
+	case groupmetric.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case groupmetric.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case groupmetric.FieldGroupID:
+		m.ResetGroupID()
+		return nil
+	case groupmetric.FieldHour:
+		m.ResetHour()
+		return nil
+	case groupmetric.FieldRequests:
+		m.ResetRequests()
+		return nil
+	case groupmetric.FieldUpstreamFailures:
+		m.ResetUpstreamFailures()
+		return nil
+	case groupmetric.FieldRequestErrors:
+		m.ResetRequestErrors()
+		return nil
+	case groupmetric.FieldTtftSamples:
+		m.ResetTtftSamples()
+		return nil
+	case groupmetric.FieldInputTokens:
+		m.ResetInputTokens()
+		return nil
+	case groupmetric.FieldCacheReadTokens:
+		m.ResetCacheReadTokens()
+		return nil
+	case groupmetric.FieldCacheCreationTokens:
+		m.ResetCacheCreationTokens()
+		return nil
+	case groupmetric.FieldP50Ttft:
+		m.ResetP50Ttft()
+		return nil
+	case groupmetric.FieldP95Ttft:
+		m.ResetP95Ttft()
+		return nil
+	case groupmetric.FieldCacheHitRate:
+		m.ResetCacheHitRate()
+		return nil
+	}
+	return fmt.Errorf("unknown GroupMetric field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *GroupMetricMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *GroupMetricMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *GroupMetricMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *GroupMetricMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *GroupMetricMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *GroupMetricMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *GroupMetricMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown GroupMetric unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *GroupMetricMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown GroupMetric edge %s", name)
 }
 
 // IdempotencyRecordMutation represents an operation that mutates the IdempotencyRecord nodes in the graph.

@@ -103,6 +103,7 @@ func provideCleanup(
 	proxyExpiry *service.ProxyExpiryService,
 	settlement *service.SettlementService,
 	metricsService *service.MetricsService,
+	metricsAggregator *service.MetricsAggregator,
 	subscriptionExpiry *service.SubscriptionExpiryService,
 	usageCleanup *service.UsageCleanupService,
 	idempotencyCleanup *service.IdempotencyCleanupService,
@@ -293,6 +294,12 @@ func provideCleanup(
 			}},
 			{"SettlementService", func() error {
 				settlement.Stop()
+				return nil
+			}},
+			{"MetricsAggregator", func() error {
+				if metricsAggregator != nil {
+					metricsAggregator.Stop()
+				}
 				return nil
 			}},
 			{"MetricsService", func() error {

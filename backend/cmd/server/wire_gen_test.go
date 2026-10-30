@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/woolsen/router2api/internal/config"
 	"github.com/woolsen/router2api/internal/handler"
 	"github.com/woolsen/router2api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProvideServiceBuildInfo(t *testing.T) {
@@ -73,6 +73,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		proxyExpirySvc,
 		nil, // settlement
 		nil, // metricsService
+		nil, // metricsAggregator
 		subscriptionExpirySvc,
 		&service.UsageCleanupService{},
 		idempotencyCleanupSvc,

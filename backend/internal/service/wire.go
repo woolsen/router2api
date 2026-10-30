@@ -450,6 +450,14 @@ func ProvideMetricsService(metricRepo RequestMetricRepository) *MetricsService {
 	return svc
 }
 
+// ProvideMetricsAggregator 创建并启动小时聚合任务。
+// 启动时补算上一个完整小时，此后每小时第 5 分钟重算上一小时。
+func ProvideMetricsAggregator(groupMetricRepo GroupMetricRepository) *MetricsAggregator {
+	svc := NewMetricsAggregator(groupMetricRepo)
+	svc.Start()
+	return svc
+}
+
 // ProvideSubscriptionExpiryService creates and starts SubscriptionExpiryService.
 func ProvideSubscriptionExpiryService(userSubRepo UserSubscriptionRepository, settingRepo SettingRepository, notificationEmailService *NotificationEmailService, lockCache LeaderLockCache, db *sql.DB) *SubscriptionExpiryService {
 	svc := NewSubscriptionExpiryService(userSubRepo, time.Minute)
@@ -970,6 +978,7 @@ var ProviderSet = wire.NewSet(
 	ProvideProxyExpiryService,
 	ProvideSettlementService,
 	ProvideMetricsService,
+	ProvideMetricsAggregator,
 	ProvideSubscriptionExpiryService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,

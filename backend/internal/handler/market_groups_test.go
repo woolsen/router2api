@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/woolsen/router2api/internal/server/middleware"
 	"github.com/woolsen/router2api/internal/service"
@@ -52,15 +53,59 @@ func newFakeMarketVisibility() *fakeMarketVisibility {
 // marketGroupResponse 是测试侧的解码形状。Stats 用 any 而不是指针：
 // JSON 里的 null 解码后为 nil，而字段缺失同样为 nil，所以另用原始 JSON 断言键存在。
 type marketGroupResponse struct {
-	ID             int64              `json:"id"`
-	Name           string             `json:"name"`
-	Platform       string             `json:"platform"`
-	RateMultiplier float64            `json:"rate_multiplier"`
-	RateIsEstimate bool               `json:"rate_is_estimate"`
-	PeakRate       *marketPeakRateDTO `json:"peak_rate"`
-	Models         []string           `json:"models"`
-	Status         string             `json:"status"`
-	Stats          any                `json:"stats"`
+	ID             int64                `json:"id"`
+	Name           string               `json:"name"`
+	Platform       string               `json:"platform"`
+	RateMultiplier float64              `json:"rate_multiplier"`
+	RateIsEstimate bool                 `json:"rate_is_estimate"`
+	PeakRate       *marketPeakRateDTO   `json:"peak_rate"`
+	Models         []string             `json:"models"`
+	Status         string               `json:"status"`
+	Stats          *marketGroupStatsDTO `json:"stats"`
+	SampleSize     int                  `json:"sample_size"`
+	Degraded       bool                 `json:"degraded"`
+	DegradedReason string               `json:"degraded_reason"`
+	AsOf           *time.Time           `json:"as_of"`
+}
+
+// marketGroupStatsDTO 对应 1h + 24h 两档指标。
+type marketGroupStatsDTO struct {
+	LastHour *marketStatsWindowDTO `json:"last_hour"`
+	Last24h  *marketStatsWindowDTO `json:"last_24h"`
+}
+
+// marketStatsWindowDTO 是一档窗口；分位数与缓存率允许为 null。
+type marketStatsWindowDTO struct {
+	Requests         int      `json:"requests"`
+	UpstreamFailures int      `json:"upstream_failures"`
+	SuccessRate      float64  `json:"success_rate"`
+	RequestErrorRate float64  `json:"request_error_rate"`
+	TTFTSamples      int      `json:"ttft_samples"`
+	P50TTFTMs        *float64 `json:"p50_ttft_ms"`
+	P95TTFTMs        *float64 `json:"p95_ttft_ms"`
+	CacheHitRate     *float64 `json:"cache_hit_rate"`
+}
+
+// fakeMarketMetrics 是货架指标来源替身。
+type fakeMarketMetrics struct {
+	summaries map[int64]service.GroupMetricSummary
+	health    map[int64]service.Health
+	err       error
+	healthErr error
+}
+
+func (f *fakeMarketMetrics) GroupMetrics(context.Context, []int64) (map[int64]service.GroupMetricSummary, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.summaries, nil
+}
+
+func (f *fakeMarketMetrics) Health(_ context.Context, groupID int64) (service.Health, error) {
+	if f.healthErr != nil {
+		return service.Health{}, f.healthErr
+	}
+	return f.health[groupID], nil
 }
 
 // marketPeakRateDTO 与 handler 的 marketPeakRate 同形，测试侧独立声明避免耦合实现。
@@ -79,8 +124,19 @@ func doGET(t *testing.T, source MarketGroupSource) ([]marketGroupResponse, []byt
 
 func doGETWithVisibility(t *testing.T, source MarketGroupSource, visibility MarketVisibilitySource) ([]marketGroupResponse, []byte) {
 	t.Helper()
+	return doGETWithMetrics(t, source, visibility, nil)
+}
+
+func doGETWithMetrics(
+	t *testing.T,
+	source MarketGroupSource,
+	visibility MarketVisibilitySource,
+	metrics MarketMetricsSource,
+) ([]marketGroupResponse, []byte) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	h := NewMarketGroupsHandler(source, visibility)
+	h.SetMetricsSource(metrics)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/market/groups", nil)
@@ -151,6 +207,175 @@ func marketFixture() []service.PlazaGroup {
 			},
 		},
 	}
+}
+
+func TestMarketGroupsHidesStatsBelowFiftySamples(t *testing.T) {
+	asOf := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	metrics := &fakeMarketMetrics{
+		summaries: map[int64]service.GroupMetricSummary{
+			1: {
+				LastHour:   &service.GroupMetricWindow{Requests: 10, SuccessRate: 1},
+				Last24h:    &service.GroupMetricWindow{Requests: 49, SuccessRate: 1},
+				AsOf:       &asOf,
+				SampleSize: 49,
+			},
+		},
+		health: map[int64]service.Health{},
+	}
+	resp, raw := doGETWithMetrics(t, &fakeMarketGroupSource{groups: marketFixture()}, newFakeMarketVisibility(), metrics)
+	require.NotEmpty(t, resp)
+
+	var group *marketGroupResponse
+	for i := range resp {
+		if resp[i].ID == 1 {
+			group = &resp[i]
+			break
+		}
+	}
+	require.NotNil(t, group)
+	require.Nil(t, group.Stats, "49 samples must render as insufficient data")
+	require.Equal(t, 49, group.SampleSize)
+	require.NotNil(t, group.AsOf, "as_of stays honest even when stats are withheld")
+
+	var envelope struct {
+		Data []map[string]json.RawMessage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &envelope))
+	for i := range envelope.Data {
+		if string(envelope.Data[i]["id"]) == "1" {
+			require.JSONEq(t, "null", string(envelope.Data[i]["stats"]))
+		}
+	}
+}
+
+func TestMarketGroupsExposesStatsAtFiftySamples(t *testing.T) {
+	asOf := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	cacheHit := 0.75
+	p50 := 420.0
+	p95 := 1200.0
+	metrics := &fakeMarketMetrics{
+		summaries: map[int64]service.GroupMetricSummary{
+			1: {
+				LastHour: &service.GroupMetricWindow{
+					Requests:         12,
+					UpstreamFailures: 1,
+					RequestErrors:    2,
+					TTFTSamples:      10,
+					SuccessRate:      11.0 / 12.0,
+					RequestErrorRate: 2.0 / 12.0,
+					P50TTFT:          p50,
+					P95TTFT:          p95,
+					HasTTFT:          true,
+					CacheHitRate:     cacheHit,
+					HasCache:         true,
+				},
+				Last24h: &service.GroupMetricWindow{
+					Requests:         60,
+					UpstreamFailures: 3,
+					RequestErrors:    4,
+					TTFTSamples:      50,
+					SuccessRate:      57.0 / 60.0,
+					RequestErrorRate: 4.0 / 60.0,
+					CacheHitRate:     0.6,
+					HasCache:         true,
+				},
+				AsOf:       &asOf,
+				SampleSize: 60,
+			},
+		},
+		health: map[int64]service.Health{},
+	}
+	resp, _ := doGETWithMetrics(t, &fakeMarketGroupSource{groups: marketFixture()}, newFakeMarketVisibility(), metrics)
+	var group *marketGroupResponse
+	for i := range resp {
+		if resp[i].ID == 1 {
+			group = &resp[i]
+			break
+		}
+	}
+	require.NotNil(t, group)
+	require.NotNil(t, group.Stats)
+	require.Equal(t, 60, group.SampleSize)
+	require.NotNil(t, group.AsOf)
+	require.True(t, group.AsOf.Equal(asOf))
+
+	require.NotNil(t, group.Stats.LastHour)
+	require.Equal(t, 12, group.Stats.LastHour.Requests)
+	require.Equal(t, 1, group.Stats.LastHour.UpstreamFailures)
+	require.InDelta(t, 11.0/12.0, group.Stats.LastHour.SuccessRate, 1e-9)
+	require.InDelta(t, 2.0/12.0, group.Stats.LastHour.RequestErrorRate, 1e-9)
+	require.NotNil(t, group.Stats.LastHour.P50TTFTMs)
+	require.InDelta(t, p50, *group.Stats.LastHour.P50TTFTMs, 1e-9)
+	require.NotNil(t, group.Stats.LastHour.P95TTFTMs)
+	require.InDelta(t, p95, *group.Stats.LastHour.P95TTFTMs, 1e-9)
+	require.NotNil(t, group.Stats.LastHour.CacheHitRate)
+	require.InDelta(t, cacheHit, *group.Stats.LastHour.CacheHitRate, 1e-9)
+
+	require.NotNil(t, group.Stats.Last24h)
+	require.Equal(t, 60, group.Stats.Last24h.Requests)
+	require.Nil(t, group.Stats.Last24h.P95TTFTMs, "multi-bucket percentiles must not be fabricated")
+}
+
+func TestMarketGroupsMarksDegradedWithoutDelisting(t *testing.T) {
+	asOf := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	metrics := &fakeMarketMetrics{
+		summaries: map[int64]service.GroupMetricSummary{
+			1: {
+				LastHour:   &service.GroupMetricWindow{Requests: 20, UpstreamFailures: 3, SuccessRate: 0.85},
+				Last24h:    &service.GroupMetricWindow{Requests: 55, UpstreamFailures: 5, SuccessRate: 50.0 / 55.0},
+				AsOf:       &asOf,
+				SampleSize: 55,
+			},
+		},
+		health: map[int64]service.Health{
+			1: {Degraded: true, Reason: service.DegradedReasonUpstreamFailureRate, SampleSize: 20},
+		},
+	}
+	resp, _ := doGETWithMetrics(t, &fakeMarketGroupSource{groups: marketFixture()}, newFakeMarketVisibility(), metrics)
+
+	var group *marketGroupResponse
+	for i := range resp {
+		if resp[i].ID == 1 {
+			group = &resp[i]
+			break
+		}
+	}
+	require.NotNil(t, group, "a degraded group must stay on the shelf")
+	require.True(t, group.Degraded)
+	require.Equal(t, service.DegradedReasonUpstreamFailureRate, group.DegradedReason)
+	require.Equal(t, service.StatusActive, group.Status, "degraded must not change status")
+	require.NotNil(t, group.Stats, "degraded does not hide stats")
+}
+
+func TestMarketGroupsMetricsSourceError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewMarketGroupsHandler(&fakeMarketGroupSource{groups: marketFixture()}, newFakeMarketVisibility())
+	h.SetMetricsSource(&fakeMarketMetrics{err: errors.New("metrics down")})
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/market/groups", nil)
+	c.Set("user", middleware.AuthSubject{UserID: 7})
+
+	h.List(c)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMarketGroupsHealthSourceError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewMarketGroupsHandler(&fakeMarketGroupSource{groups: marketFixture()}, newFakeMarketVisibility())
+	h.SetMetricsSource(&fakeMarketMetrics{
+		summaries: map[int64]service.GroupMetricSummary{},
+		healthErr: errors.New("health down"),
+	})
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/market/groups", nil)
+	c.Set("user", middleware.AuthSubject{UserID: 7})
+
+	h.List(c)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestMarketGroupsOmitsStatsInM1(t *testing.T) {
@@ -246,7 +471,11 @@ func TestMarketGroupsHidesMerchantIdentityAndUpstream(t *testing.T) {
 		require.Falsef(t, exists, "market DTO must not expose %q", key)
 	}
 
-	allowed := []string{"id", "name", "platform", "rate_multiplier", "rate_is_estimate", "peak_rate", "models", "status", "stats"}
+	allowed := []string{
+		"id", "name", "platform", "rate_multiplier", "rate_is_estimate",
+		"peak_rate", "models", "status", "stats", "sample_size",
+		"degraded", "degraded_reason", "as_of",
+	}
 	require.Len(t, envelope.Data[0], len(allowed), "unexpected extra fields in market DTO")
 	for _, key := range allowed {
 		_, exists := envelope.Data[0][key]

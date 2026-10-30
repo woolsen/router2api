@@ -22,6 +22,7 @@ import (
 	"github.com/woolsen/router2api/ent/compositemodelroute"
 	"github.com/woolsen/router2api/ent/errorpassthroughrule"
 	"github.com/woolsen/router2api/ent/group"
+	"github.com/woolsen/router2api/ent/groupmetric"
 	"github.com/woolsen/router2api/ent/idempotencyrecord"
 	"github.com/woolsen/router2api/ent/identityadoptiondecision"
 	"github.com/woolsen/router2api/ent/merchant"
@@ -1248,6 +1249,61 @@ func init() {
 	groupDescProfitSafetyBuffer := groupFields[64].Descriptor()
 	// group.DefaultProfitSafetyBuffer holds the default value on creation for the profit_safety_buffer field.
 	group.DefaultProfitSafetyBuffer = groupDescProfitSafetyBuffer.Default.(float64)
+	groupmetricMixin := schema.GroupMetric{}.Mixin()
+	groupmetricMixinFields0 := groupmetricMixin[0].Fields()
+	_ = groupmetricMixinFields0
+	groupmetricFields := schema.GroupMetric{}.Fields()
+	_ = groupmetricFields
+	// groupmetricDescCreatedAt is the schema descriptor for created_at field.
+	groupmetricDescCreatedAt := groupmetricMixinFields0[0].Descriptor()
+	// groupmetric.DefaultCreatedAt holds the default value on creation for the created_at field.
+	groupmetric.DefaultCreatedAt = groupmetricDescCreatedAt.Default.(func() time.Time)
+	// groupmetricDescUpdatedAt is the schema descriptor for updated_at field.
+	groupmetricDescUpdatedAt := groupmetricMixinFields0[1].Descriptor()
+	// groupmetric.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	groupmetric.DefaultUpdatedAt = groupmetricDescUpdatedAt.Default.(func() time.Time)
+	// groupmetric.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	groupmetric.UpdateDefaultUpdatedAt = groupmetricDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// groupmetricDescRequests is the schema descriptor for requests field.
+	groupmetricDescRequests := groupmetricFields[2].Descriptor()
+	// groupmetric.DefaultRequests holds the default value on creation for the requests field.
+	groupmetric.DefaultRequests = groupmetricDescRequests.Default.(int)
+	// groupmetricDescUpstreamFailures is the schema descriptor for upstream_failures field.
+	groupmetricDescUpstreamFailures := groupmetricFields[3].Descriptor()
+	// groupmetric.DefaultUpstreamFailures holds the default value on creation for the upstream_failures field.
+	groupmetric.DefaultUpstreamFailures = groupmetricDescUpstreamFailures.Default.(int)
+	// groupmetricDescRequestErrors is the schema descriptor for request_errors field.
+	groupmetricDescRequestErrors := groupmetricFields[4].Descriptor()
+	// groupmetric.DefaultRequestErrors holds the default value on creation for the request_errors field.
+	groupmetric.DefaultRequestErrors = groupmetricDescRequestErrors.Default.(int)
+	// groupmetricDescTtftSamples is the schema descriptor for ttft_samples field.
+	groupmetricDescTtftSamples := groupmetricFields[5].Descriptor()
+	// groupmetric.DefaultTtftSamples holds the default value on creation for the ttft_samples field.
+	groupmetric.DefaultTtftSamples = groupmetricDescTtftSamples.Default.(int)
+	// groupmetricDescInputTokens is the schema descriptor for input_tokens field.
+	groupmetricDescInputTokens := groupmetricFields[6].Descriptor()
+	// groupmetric.DefaultInputTokens holds the default value on creation for the input_tokens field.
+	groupmetric.DefaultInputTokens = groupmetricDescInputTokens.Default.(int64)
+	// groupmetricDescCacheReadTokens is the schema descriptor for cache_read_tokens field.
+	groupmetricDescCacheReadTokens := groupmetricFields[7].Descriptor()
+	// groupmetric.DefaultCacheReadTokens holds the default value on creation for the cache_read_tokens field.
+	groupmetric.DefaultCacheReadTokens = groupmetricDescCacheReadTokens.Default.(int64)
+	// groupmetricDescCacheCreationTokens is the schema descriptor for cache_creation_tokens field.
+	groupmetricDescCacheCreationTokens := groupmetricFields[8].Descriptor()
+	// groupmetric.DefaultCacheCreationTokens holds the default value on creation for the cache_creation_tokens field.
+	groupmetric.DefaultCacheCreationTokens = groupmetricDescCacheCreationTokens.Default.(int64)
+	// groupmetricDescP50Ttft is the schema descriptor for p50_ttft field.
+	groupmetricDescP50Ttft := groupmetricFields[9].Descriptor()
+	// groupmetric.DefaultP50Ttft holds the default value on creation for the p50_ttft field.
+	groupmetric.DefaultP50Ttft = groupmetricDescP50Ttft.Default.(float64)
+	// groupmetricDescP95Ttft is the schema descriptor for p95_ttft field.
+	groupmetricDescP95Ttft := groupmetricFields[10].Descriptor()
+	// groupmetric.DefaultP95Ttft holds the default value on creation for the p95_ttft field.
+	groupmetric.DefaultP95Ttft = groupmetricDescP95Ttft.Default.(float64)
+	// groupmetricDescCacheHitRate is the schema descriptor for cache_hit_rate field.
+	groupmetricDescCacheHitRate := groupmetricFields[11].Descriptor()
+	// groupmetric.DefaultCacheHitRate holds the default value on creation for the cache_hit_rate field.
+	groupmetric.DefaultCacheHitRate = groupmetricDescCacheHitRate.Default.(float64)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
 	idempotencyrecordMixinFields0 := idempotencyrecordMixin[0].Fields()
 	_ = idempotencyrecordMixinFields0

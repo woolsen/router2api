@@ -29,6 +29,7 @@ import (
 	"github.com/woolsen/router2api/ent/compositemodelroute"
 	"github.com/woolsen/router2api/ent/errorpassthroughrule"
 	"github.com/woolsen/router2api/ent/group"
+	"github.com/woolsen/router2api/ent/groupmetric"
 	"github.com/woolsen/router2api/ent/idempotencyrecord"
 	"github.com/woolsen/router2api/ent/identityadoptiondecision"
 	"github.com/woolsen/router2api/ent/merchant"
@@ -131,6 +132,7 @@ func checkColumn(t, c string) error {
 			compositemodelroute.Table:           compositemodelroute.ValidColumn,
 			errorpassthroughrule.Table:          errorpassthroughrule.ValidColumn,
 			group.Table:                         group.ValidColumn,
+			groupmetric.Table:                   groupmetric.ValidColumn,
 			idempotencyrecord.Table:             idempotencyrecord.ValidColumn,
 			identityadoptiondecision.Table:      identityadoptiondecision.ValidColumn,
 			merchant.Table:                      merchant.ValidColumn,

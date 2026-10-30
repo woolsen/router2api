@@ -32,6 +32,15 @@ type MarketVisibilitySource interface {
 	GetUserGroupRates(ctx context.Context, userID int64) (map[int64]float64, error)
 }
 
+// MarketMetricsSource 提供分组的小时聚合指标与降级标记。
+//
+// 生产实现是 *service.MetricsAggregator。指标只读 group_metric_hourly；
+// 降级只标记，不改变分组状态，也不下架分组。
+type MarketMetricsSource interface {
+	GroupMetrics(ctx context.Context, groupIDs []int64) (map[int64]service.GroupMetricSummary, error)
+	Health(ctx context.Context, groupID int64) (service.Health, error)
+}
+
 // MarketGroupsHandler 处理货架（market）的只读查询。
 //
 // 货架只展示入驻商户（merchant_id IS NOT NULL）且状态为 active、且对当前用户可见的
@@ -40,11 +49,17 @@ type MarketVisibilitySource interface {
 type MarketGroupsHandler struct {
 	source     MarketGroupSource
 	visibility MarketVisibilitySource
+	metrics    MarketMetricsSource
 }
 
 // NewMarketGroupsHandler 创建货架 handler。
 func NewMarketGroupsHandler(source MarketGroupSource, visibility MarketVisibilitySource) *MarketGroupsHandler {
 	return &MarketGroupsHandler{source: source, visibility: visibility}
+}
+
+// SetMetricsSource 注入小时指标来源。未注入时货架仍然可用，只是 stats 恒为 null。
+func (h *MarketGroupsHandler) SetMetricsSource(metrics MarketMetricsSource) {
+	h.metrics = metrics
 }
 
 // marketGroup 是货架分组条目（对外白名单字段）。
@@ -65,9 +80,38 @@ type marketGroup struct {
 	PeakRate       *marketPeakRate `json:"peak_rate"`
 	Models         []string        `json:"models"`
 	Status         string          `json:"status"`
-	// Stats 在 M1 恒为 null。指标依赖 M2 的 request_metrics；usage_logs 只记成功
-	// 请求，拼出来的成功率会误导用户，所以宁可留空让前端显示「数据不足」。
-	Stats any `json:"stats"`
+	// Stats 在 24h 样本不足 50 条时恒为 null，前端必须显示「数据不足」，
+	// 不能把 2 条请求算出的 100% 成功率当成承诺。
+	Stats *marketGroupStats `json:"stats"`
+	// SampleSize 是 24h 档的实际请求数；即使 stats 为 null 也如实返回。
+	SampleSize int `json:"sample_size"`
+	// Degraded 只标记、不下架；Status 仍为 active。
+	Degraded       bool   `json:"degraded"`
+	DegradedReason string `json:"degraded_reason"`
+	// AsOf 是最后一个已聚合小时的截止时间，不是请求时刻。没有聚合数据时为 null。
+	AsOf *time.Time `json:"as_of"`
+}
+
+// marketGroupStats 是货架的 1h + 24h 两档指标。
+//
+// 24h 档的计数、比率与缓存命中率都由小时原始值精确求和/重算；分位数不能从
+// 小时分位数精确合并，因此 24h 档的 p50/p95 只在单桶时返回，避免伪造数字。
+type marketGroupStats struct {
+	LastHour *marketStatsWindow `json:"last_hour"`
+	Last24h  *marketStatsWindow `json:"last_24h"`
+}
+
+// marketStatsWindow 是一档窗口的对外指标。不可用的分位数/缓存率用 null 表示，
+// 不用 0 冒充真实观测值。
+type marketStatsWindow struct {
+	Requests         int      `json:"requests"`
+	UpstreamFailures int      `json:"upstream_failures"`
+	SuccessRate      float64  `json:"success_rate"`
+	RequestErrorRate float64  `json:"request_error_rate"`
+	TTFTSamples      int      `json:"ttft_samples"`
+	P50TTFTMs        *float64 `json:"p50_ttft_ms"`
+	P95TTFTMs        *float64 `json:"p95_ttft_ms"`
+	CacheHitRate     *float64 `json:"cache_hit_rate"`
 }
 
 // marketPeakRate 是分组的高峰时段倍率信息，供前端单独标注。
@@ -120,6 +164,20 @@ func (h *MarketGroupsHandler) List(c *gin.Context) {
 	}
 	visible = filterPlazaVisibleGroups(visible, allowedGroups, restrictPublicGroups)
 
+	// 指标一次批量读取，避免每个分组都扫一遍小时表；降级判定按分组查最近窗口。
+	summaries := map[int64]service.GroupMetricSummary{}
+	if h.metrics != nil && len(visible) > 0 {
+		groupIDs := make([]int64, 0, len(visible))
+		for i := range visible {
+			groupIDs = append(groupIDs, visible[i].ID)
+		}
+		summaries, err = h.metrics.GroupMetrics(c.Request.Context(), groupIDs)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+
 	acceptLanguage := c.GetHeader("Accept-Language")
 	now := time.Now()
 	out := make([]marketGroup, 0, len(visible))
@@ -136,6 +194,17 @@ func (h *MarketGroupsHandler) List(c *gin.Context) {
 		}
 		// 图片/视频独立倍率不受分组 token 倍率约束，单值展示只能算估算。
 		estimate := ratesErr != nil || g.ImageRateIndependent || g.VideoRateIndependent
+
+		summary := summaries[g.ID]
+		health := service.Health{}
+		if h.metrics != nil {
+			health, err = h.metrics.Health(c.Request.Context(), g.ID)
+			if err != nil {
+				response.ErrorFrom(c, err)
+				return
+			}
+		}
+
 		out = append(out, marketGroup{
 			ID:             g.ID,
 			Name:           g.I18n.LocalizeName(acceptLanguage, g.Name),
@@ -145,8 +214,12 @@ func (h *MarketGroupsHandler) List(c *gin.Context) {
 			PeakRate:       marketPeakRateFrom(g, now),
 			Models:         models,
 			// ListGroups 只返回 active 分组；状态字段随契约输出，客户端不必推断。
-			Status: service.StatusActive,
-			Stats:  nil,
+			Status:         service.StatusActive,
+			Stats:          marketStatsFrom(summary),
+			SampleSize:     summary.SampleSize,
+			Degraded:       health.Degraded,
+			DegradedReason: health.Reason,
+			AsOf:           summary.AsOf,
 		})
 	}
 
@@ -161,6 +234,41 @@ func (h *MarketGroupsHandler) List(c *gin.Context) {
 	// 分组名称随请求语言变化，缓存键必须带上语言。
 	c.Writer.Header().Add("Vary", "Accept-Language")
 	response.Success(c, out)
+}
+
+// marketStatsFrom 把服务层摘要映射为对外 DTO；不足 50 条样本时整块为 null。
+func marketStatsFrom(summary service.GroupMetricSummary) *marketGroupStats {
+	if summary.SampleSize < service.MarketStatsMinSamples {
+		return nil
+	}
+	return &marketGroupStats{
+		LastHour: marketStatsWindowFrom(summary.LastHour),
+		Last24h:  marketStatsWindowFrom(summary.Last24h),
+	}
+}
+
+func marketStatsWindowFrom(window *service.GroupMetricWindow) *marketStatsWindow {
+	if window == nil {
+		return nil
+	}
+	out := &marketStatsWindow{
+		Requests:         window.Requests,
+		UpstreamFailures: window.UpstreamFailures,
+		SuccessRate:      window.SuccessRate,
+		RequestErrorRate: window.RequestErrorRate,
+		TTFTSamples:      window.TTFTSamples,
+	}
+	if window.HasTTFT {
+		p50 := window.P50TTFT
+		p95 := window.P95TTFT
+		out.P50TTFTMs = &p50
+		out.P95TTFTMs = &p95
+	}
+	if window.HasCache {
+		rate := window.CacheHitRate
+		out.CacheHitRate = &rate
+	}
+	return out
 }
 
 // marketPeakRateFrom 返回高峰倍率信息；未启用或配置无效时返回 nil。

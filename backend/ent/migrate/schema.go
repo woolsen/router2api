@@ -1030,6 +1030,42 @@ var (
 			},
 		},
 	}
+	// GroupMetricHourlyColumns holds the columns for the "group_metric_hourly" table.
+	GroupMetricHourlyColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "group_id", Type: field.TypeInt64},
+		{Name: "hour", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "requests", Type: field.TypeInt, Default: 0},
+		{Name: "upstream_failures", Type: field.TypeInt, Default: 0},
+		{Name: "request_errors", Type: field.TypeInt, Default: 0},
+		{Name: "ttft_samples", Type: field.TypeInt, Default: 0},
+		{Name: "input_tokens", Type: field.TypeInt64, Default: 0},
+		{Name: "cache_read_tokens", Type: field.TypeInt64, Default: 0},
+		{Name: "cache_creation_tokens", Type: field.TypeInt64, Default: 0},
+		{Name: "p50_ttft", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "double precision"}},
+		{Name: "p95_ttft", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "double precision"}},
+		{Name: "cache_hit_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "double precision"}},
+	}
+	// GroupMetricHourlyTable holds the schema information for the "group_metric_hourly" table.
+	GroupMetricHourlyTable = &schema.Table{
+		Name:       "group_metric_hourly",
+		Columns:    GroupMetricHourlyColumns,
+		PrimaryKey: []*schema.Column{GroupMetricHourlyColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "groupmetric_group_id_hour",
+				Unique:  true,
+				Columns: []*schema.Column{GroupMetricHourlyColumns[3], GroupMetricHourlyColumns[4]},
+			},
+			{
+				Name:    "groupmetric_hour",
+				Unique:  false,
+				Columns: []*schema.Column{GroupMetricHourlyColumns[4]},
+			},
+		},
+	}
 	// IdempotencyRecordsColumns holds the columns for the "idempotency_records" table.
 	IdempotencyRecordsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2225,6 +2261,7 @@ var (
 		CompositeModelRoutesTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
+		GroupMetricHourlyTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
 		MerchantsTable,
@@ -2318,6 +2355,9 @@ func init() {
 	}
 	GroupsTable.Annotation = &entsql.Annotation{
 		Table: "groups",
+	}
+	GroupMetricHourlyTable.Annotation = &entsql.Annotation{
+		Table: "group_metric_hourly",
 	}
 	IdempotencyRecordsTable.Annotation = &entsql.Annotation{
 		Table: "idempotency_records",

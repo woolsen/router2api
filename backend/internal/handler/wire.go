@@ -165,9 +165,16 @@ func ProvideBatchImageHandler(
 }
 
 // ProvideMarketGroupsHandler 把模型广场服务与可见性来源适配成货架 handler。
-// 货架与 /model-plaza 共用渠道 SupportedModels 的模型枚举和用户可见性规则。
-func ProvideMarketGroupsHandler(plaza *service.ModelPlazaService, apiKeyService *service.APIKeyService) *MarketGroupsHandler {
-	return NewMarketGroupsHandler(plaza, apiKeyService)
+// 货架与 /model-plaza 共用渠道 SupportedModels 的模型枚举和用户可见性规则，
+// 并接入小时聚合指标与降级标记。
+func ProvideMarketGroupsHandler(
+	plaza *service.ModelPlazaService,
+	apiKeyService *service.APIKeyService,
+	metricsAggregator *service.MetricsAggregator,
+) *MarketGroupsHandler {
+	h := NewMarketGroupsHandler(plaza, apiKeyService)
+	h.SetMetricsSource(metricsAggregator)
+	return h
 }
 
 // ProvideSystemHandler creates admin.SystemHandler with UpdateService

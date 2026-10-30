@@ -32,6 +32,7 @@ import (
 	"github.com/woolsen/router2api/ent/compositemodelroute"
 	"github.com/woolsen/router2api/ent/errorpassthroughrule"
 	"github.com/woolsen/router2api/ent/group"
+	"github.com/woolsen/router2api/ent/groupmetric"
 	"github.com/woolsen/router2api/ent/idempotencyrecord"
 	"github.com/woolsen/router2api/ent/identityadoptiondecision"
 	"github.com/woolsen/router2api/ent/merchant"
@@ -100,6 +101,8 @@ type Client struct {
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
 	Group *GroupClient
+	// GroupMetric is the client for interacting with the GroupMetric builders.
+	GroupMetric *GroupMetricClient
 	// IdempotencyRecord is the client for interacting with the IdempotencyRecord builders.
 	IdempotencyRecord *IdempotencyRecordClient
 	// IdentityAdoptionDecision is the client for interacting with the IdentityAdoptionDecision builders.
@@ -178,6 +181,7 @@ func (c *Client) init() {
 	c.CompositeModelRoute = NewCompositeModelRouteClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
 	c.Group = NewGroupClient(c.config)
+	c.GroupMetric = NewGroupMetricClient(c.config)
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
 	c.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(c.config)
 	c.Merchant = NewMerchantClient(c.config)
@@ -312,6 +316,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		CompositeModelRoute:           NewCompositeModelRouteClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
+		GroupMetric:                   NewGroupMetricClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
 		Merchant:                      NewMerchantClient(cfg),
@@ -373,6 +378,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		CompositeModelRoute:           NewCompositeModelRouteClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
+		GroupMetric:                   NewGroupMetricClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
 		Merchant:                      NewMerchantClient(cfg),
@@ -431,13 +437,14 @@ func (c *Client) Use(hooks ...Hook) {
 		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
 		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.Merchant, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.RequestMetric, c.SecuritySecret, c.Setting,
-		c.Settlement, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
-		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
-		c.UserAttributeValue, c.UserPlatformQuota, c.UserSubscription,
+		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.GroupMetric,
+		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant, c.PaymentAuditLog,
+		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
+		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.RequestMetric, c.SecuritySecret,
+		c.Setting, c.Settlement, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
+		c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -451,13 +458,14 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
 		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.Merchant, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.RequestMetric, c.SecuritySecret, c.Setting,
-		c.Settlement, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
-		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
-		c.UserAttributeValue, c.UserPlatformQuota, c.UserSubscription,
+		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.GroupMetric,
+		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant, c.PaymentAuditLog,
+		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
+		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.RequestMetric, c.SecuritySecret,
+		c.Setting, c.Settlement, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
+		c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -500,6 +508,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ErrorPassthroughRule.mutate(ctx, m)
 	case *GroupMutation:
 		return c.Group.mutate(ctx, m)
+	case *GroupMetricMutation:
+		return c.GroupMetric.mutate(ctx, m)
 	case *IdempotencyRecordMutation:
 		return c.IdempotencyRecord.mutate(ctx, m)
 	case *IdentityAdoptionDecisionMutation:
@@ -3300,6 +3310,139 @@ func (c *GroupClient) mutate(ctx context.Context, m *GroupMutation) (Value, erro
 		return (&GroupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Group mutation op: %q", m.Op())
+	}
+}
+
+// GroupMetricClient is a client for the GroupMetric schema.
+type GroupMetricClient struct {
+	config
+}
+
+// NewGroupMetricClient returns a client for the GroupMetric from the given config.
+func NewGroupMetricClient(c config) *GroupMetricClient {
+	return &GroupMetricClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `groupmetric.Hooks(f(g(h())))`.
+func (c *GroupMetricClient) Use(hooks ...Hook) {
+	c.hooks.GroupMetric = append(c.hooks.GroupMetric, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `groupmetric.Intercept(f(g(h())))`.
+func (c *GroupMetricClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GroupMetric = append(c.inters.GroupMetric, interceptors...)
+}
+
+// Create returns a builder for creating a GroupMetric entity.
+func (c *GroupMetricClient) Create() *GroupMetricCreate {
+	mutation := newGroupMetricMutation(c.config, OpCreate)
+	return &GroupMetricCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GroupMetric entities.
+func (c *GroupMetricClient) CreateBulk(builders ...*GroupMetricCreate) *GroupMetricCreateBulk {
+	return &GroupMetricCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GroupMetricClient) MapCreateBulk(slice any, setFunc func(*GroupMetricCreate, int)) *GroupMetricCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GroupMetricCreateBulk{err: fmt.Errorf("calling to GroupMetricClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GroupMetricCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GroupMetricCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GroupMetric.
+func (c *GroupMetricClient) Update() *GroupMetricUpdate {
+	mutation := newGroupMetricMutation(c.config, OpUpdate)
+	return &GroupMetricUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GroupMetricClient) UpdateOne(_m *GroupMetric) *GroupMetricUpdateOne {
+	mutation := newGroupMetricMutation(c.config, OpUpdateOne, withGroupMetric(_m))
+	return &GroupMetricUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GroupMetricClient) UpdateOneID(id int64) *GroupMetricUpdateOne {
+	mutation := newGroupMetricMutation(c.config, OpUpdateOne, withGroupMetricID(id))
+	return &GroupMetricUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GroupMetric.
+func (c *GroupMetricClient) Delete() *GroupMetricDelete {
+	mutation := newGroupMetricMutation(c.config, OpDelete)
+	return &GroupMetricDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GroupMetricClient) DeleteOne(_m *GroupMetric) *GroupMetricDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GroupMetricClient) DeleteOneID(id int64) *GroupMetricDeleteOne {
+	builder := c.Delete().Where(groupmetric.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GroupMetricDeleteOne{builder}
+}
+
+// Query returns a query builder for GroupMetric.
+func (c *GroupMetricClient) Query() *GroupMetricQuery {
+	return &GroupMetricQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGroupMetric},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GroupMetric entity by its id.
+func (c *GroupMetricClient) Get(ctx context.Context, id int64) (*GroupMetric, error) {
+	return c.Query().Where(groupmetric.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GroupMetricClient) GetX(ctx context.Context, id int64) *GroupMetric {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GroupMetricClient) Hooks() []Hook {
+	return c.hooks.GroupMetric
+}
+
+// Interceptors returns the client interceptors.
+func (c *GroupMetricClient) Interceptors() []Interceptor {
+	return c.inters.GroupMetric
+}
+
+func (c *GroupMetricClient) mutate(ctx context.Context, m *GroupMetricMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GroupMetricCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GroupMetricUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GroupMetricUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GroupMetricDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GroupMetric mutation op: %q", m.Op())
 	}
 }
 
@@ -7270,10 +7413,10 @@ type (
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
 		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, Merchant, PaymentAuditLog,
-		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RedeemCode, RequestMetric, SecuritySecret, Setting,
-		Settlement, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
+		Group, GroupMetric, IdempotencyRecord, IdentityAdoptionDecision, Merchant,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, RequestMetric, SecuritySecret,
+		Setting, Settlement, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
 		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
 		UserPlatformQuota, UserSubscription []ent.Hook
 	}
@@ -7282,10 +7425,10 @@ type (
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
 		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, Merchant, PaymentAuditLog,
-		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RedeemCode, RequestMetric, SecuritySecret, Setting,
-		Settlement, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
+		Group, GroupMetric, IdempotencyRecord, IdentityAdoptionDecision, Merchant,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, RequestMetric, SecuritySecret,
+		Setting, Settlement, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
 		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
 		UserPlatformQuota, UserSubscription []ent.Interceptor
 	}
