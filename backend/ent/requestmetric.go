@@ -33,7 +33,7 @@ type RequestMetric struct {
 	Model string `json:"model,omitempty"`
 	// 最终写出的 HTTP 状态码；0 表示超时/未写出响应
 	StatusCode int `json:"status_code,omitempty"`
-	// 是否归因于上游：5xx 或 status_code=0
+	// 是否归因于上游：5xx、status_code=0，或 2xx 后带内流失败
 	UpstreamError bool `json:"upstream_error,omitempty"`
 	// DurationMs holds the value of the "duration_ms" field.
 	DurationMs int `json:"duration_ms,omitempty"`

@@ -27,6 +27,6 @@ CREATE INDEX IF NOT EXISTS idx_request_metrics_request_id ON request_metrics(req
 
 COMMENT ON TABLE request_metrics IS '每次已鉴权网关请求的结果快照（含失败请求）';
 COMMENT ON COLUMN request_metrics.status_code IS '最终写出的 HTTP 状态码；0 表示超时/未写出响应';
-COMMENT ON COLUMN request_metrics.upstream_error IS '是否归因于上游：5xx 或 status_code=0；4xx 为用户错误';
+COMMENT ON COLUMN request_metrics.upstream_error IS '是否归因于上游：5xx、status_code=0，或 2xx 后带内流失败；4xx 为用户错误';
 COMMENT ON COLUMN request_metrics.merchant_id IS '分组商户快照；NULL 表示平台自营';
 COMMENT ON COLUMN request_metrics.upstream_request_id IS '上游响应声明的请求 ID；NULL 表示未提供';

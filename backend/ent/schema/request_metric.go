@@ -55,7 +55,7 @@ func (RequestMetric) Fields() []ent.Field {
 			Comment("最终写出的 HTTP 状态码；0 表示超时/未写出响应"),
 		field.Bool("upstream_error").
 			Default(false).
-			Comment("是否归因于上游：5xx 或 status_code=0"),
+			Comment("是否归因于上游：5xx、status_code=0，或 2xx 后带内流失败"),
 		field.Int("duration_ms").
 			Default(0),
 		field.Int("first_token_ms").

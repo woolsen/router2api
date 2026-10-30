@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/woolsen/router2api/internal/pkg/antigravity"
 	"github.com/woolsen/router2api/internal/pkg/apicompat"
 	"github.com/woolsen/router2api/internal/pkg/logger"
-	"github.com/gin-gonic/gin"
 )
 
 type antigravityCompatStreamAdapter interface {
@@ -505,6 +505,10 @@ func writeAntigravityCompatStreamError(
 ) {
 	adapter.WriteError(writer, reason)
 	MarkResponseCommitted(c)
+	// 上游流中断/超时/超限发生在响应已提交之后，handler 的
+	// ensureForwardErrorResponse 会因 IsResponseCommitted 跳过补写；
+	// 必须在这里留下流内失败标记，供 ops 与请求指标归因。
+	MarkOpsStreamError(c, "upstream_error", reason, http.StatusBadGateway)
 }
 
 func antigravityCompatEmptyStreamError() error {

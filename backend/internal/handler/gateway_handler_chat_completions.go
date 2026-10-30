@@ -2,17 +2,19 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 	"github.com/woolsen/router2api/internal/pkg/ip"
 	middleware2 "github.com/woolsen/router2api/internal/server/middleware"
 	"github.com/woolsen/router2api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -268,6 +270,10 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			reqLog.Debug("gateway.cc.account_slot_profit_vetoed", zap.Int64("account_id", account.ID), zap.String("reason", reason))
 			if fs.RecordProfitVeto(account.ID) == FailoverExhausted {
 				reqLog.Warn("gateway.cc.profit_veto_attempts_exhausted", zap.Int("profit_veto_count", fs.ProfitVetoCount()))
+				if streamStarted {
+					writeChatCompletionsStreamError(c, http.StatusServiceUnavailable, "api_error", profitVetoExhaustedMessage)
+					return
+				}
 				h.chatCompletionsErrorResponse(c, http.StatusServiceUnavailable, "api_error", profitVetoExhaustedMessage)
 				return
 			}
@@ -418,24 +424,31 @@ func (h *GatewayHandler) chatCompletionsErrorResponse(c *gin.Context, status int
 
 // handleCCFailoverExhausted writes a failover-exhausted error in CC format.
 func (h *GatewayHandler) handleCCFailoverExhausted(c *gin.Context, lastErr *service.UpstreamFailoverError, streamStarted bool) {
-	if streamStarted {
-		return
-	}
 	if lastErr != nil {
 		copyFailoverRetryAfter(c, lastErr.ResponseHeaders)
 	}
+	status, errType, message := ccFailoverExhaustedDetails(c, lastErr)
+	if streamStarted && c.Writer != nil && c.Writer.Written() {
+		// 心跳/首包已提交 200，无法再改状态码；必须补 SSE 错误帧并留下流内失败标记，
+		// 否则客户端只会看到静默 EOF，指标也会误记成功。
+		writeChatCompletionsStreamError(c, status, errType, message)
+		return
+	}
+	h.chatCompletionsErrorResponse(c, status, errType, message)
+}
+
+// ccFailoverExhaustedDetails 计算 CC 格式的客户端错误，供 JSON 与 SSE 两路共用。
+func ccFailoverExhaustedDetails(c *gin.Context, lastErr *service.UpstreamFailoverError) (int, string, string) {
 	if lastErr != nil && lastErr.IsCredentialFailure() {
 		status, message := credentialFailoverClientResponse(lastErr)
-		h.chatCompletionsErrorResponse(c, status, "server_error", message)
-		return
+		return status, "server_error", message
 	}
 	if lastErr != nil && lastErr.IsOpenAICapacityShed() && strings.TrimSpace(lastErr.ClientMessage) != "" {
 		status := lastErr.ClientStatusCode
 		if status <= 0 {
 			status = http.StatusServiceUnavailable
 		}
-		h.chatCompletionsErrorResponse(c, status, "server_error", lastErr.ClientMessage)
-		return
+		return status, "server_error", lastErr.ClientMessage
 	}
 	statusCode := http.StatusBadGateway
 	if lastErr != nil && lastErr.StatusCode > 0 {
@@ -443,8 +456,24 @@ func (h *GatewayHandler) handleCCFailoverExhausted(c *gin.Context, lastErr *serv
 	}
 	if lastErr != nil && service.IsOpenAISilentRefusalErrorBody(lastErr.ResponseBody) {
 		service.SetOpsUpstreamError(c, statusCode, service.OpenAISilentRefusalClientMessage(), "")
-		h.chatCompletionsErrorResponse(c, http.StatusBadGateway, "upstream_error", service.OpenAISilentRefusalClientMessage())
-		return
+		return http.StatusBadGateway, "upstream_error", service.OpenAISilentRefusalClientMessage()
 	}
-	h.chatCompletionsErrorResponse(c, statusCode, "server_error", "All available accounts exhausted")
+	return statusCode, "server_error", "All available accounts exhausted"
+}
+
+// writeChatCompletionsStreamError 在已提交 200 的 SSE 流上补错误帧与 [DONE] 终止帧。
+// 只有状态码已无法更改时才使用；同时记录 ops 流内错误，供指标归因与错误看板使用。
+func writeChatCompletionsStreamError(c *gin.Context, status int, errType, message string) {
+	service.MarkOpsStreamError(c, errType, message, status)
+	payload, err := json.Marshal(gin.H{"error": gin.H{
+		"type":    errType,
+		"message": message,
+	}})
+	if err != nil {
+		payload = []byte(`{"error":{"type":"server_error","message":"upstream request failed"}}`)
+	}
+	_, _ = fmt.Fprintf(c.Writer, "data: %s\n\ndata: [DONE]\n\n", payload)
+	if flusher, ok := c.Writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }

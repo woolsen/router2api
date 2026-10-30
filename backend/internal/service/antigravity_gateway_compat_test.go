@@ -771,6 +771,12 @@ func TestAntigravityCompatStreamErrorCommitsSingleTerminalFrame(t *testing.T) {
 	require.Nil(t, result)
 	require.True(t, IsResponseCommitted(c))
 	require.Equal(t, 1, strings.Count(recorder.Body.String(), "event: error"))
+
+	// 带内错误必须在响应提交后留下 ops 标记，供请求指标归因为上游失败。
+	streamErrs := GetOpsStreamErrors(c)
+	require.Len(t, streamErrs, 1)
+	require.Equal(t, "upstream_error", streamErrs[0].ErrType)
+	require.Equal(t, http.StatusBadGateway, streamErrs[0].IntendedStatus)
 }
 
 func TestAntigravityCompatKeepaliveAfterFirstEvent(t *testing.T) {

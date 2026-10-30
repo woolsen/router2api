@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -262,5 +263,104 @@ func TestGatewayResponsesRecordsRequestMetric(t *testing.T) {
 	}
 	if row.UserID != 11 || row.APIKeyID != 5 || row.GroupID != 7 || row.MerchantID == nil || *row.MerchantID != 99 {
 		t.Fatalf("ownership snapshot wrong: %+v", row)
+	}
+}
+
+// writeSlotWaitHeartbeat 模拟并发槽等待期间写入的 SSE ping：HTTP 200 已提交，
+// 且记录 heartbeat 字节数，供 gatewayStreamHasOnlyHeartbeats 判定。
+func writeSlotWaitHeartbeat(c *gin.Context, ping string) {
+	c.Header("Content-Type", "text/event-stream")
+	c.Status(http.StatusOK)
+	_, _ = c.Writer.WriteString(ping)
+	c.Writer.WriteHeaderNow()
+	c.Set(gatewayStreamHeartbeatBytesKey, len(ping))
+}
+
+func TestCCFailoverExhaustedAfter200HeartbeatRecordsUpstreamError(t *testing.T) {
+	repo := &recorderTestMetricRepo{}
+	svc := service.NewMetricsService(repo, service.MetricsOptions{Buffer: 4, FlushInterval: time.Millisecond})
+	svc.Start()
+
+	c, writer := newRecorderTestContext()
+	recorder := newRequestMetricRecorder()
+	recorder.Configure(svc, newRecorderTestAPIKey(), 11)
+	writeSlotWaitHeartbeat(c, ": ping\n\n")
+
+	h := &GatewayHandler{}
+	h.handleCCFailoverExhausted(c, &service.UpstreamFailoverError{StatusCode: http.StatusBadGateway}, true)
+	recorder.Finish(c)
+
+	rows := flushRecorderMetrics(t, svc, repo)
+	if len(rows) != 1 {
+		t.Fatalf("want 1 metric, got %d", len(rows))
+	}
+	row := rows[0]
+	if row.StatusCode != http.StatusOK {
+		t.Fatalf("status_code=%d, want wire status 200", row.StatusCode)
+	}
+	if !row.UpstreamError {
+		t.Fatal("failover exhausted after 200 heartbeat must be upstream_error")
+	}
+	body := writer.Body.String()
+	if !strings.Contains(body, `"error"`) {
+		t.Fatalf("missing SSE error frame: %q", body)
+	}
+	if !strings.Contains(body, "data: [DONE]") {
+		t.Fatalf("missing terminal [DONE] frame: %q", body)
+	}
+	streamErrs := service.GetOpsStreamErrors(c)
+	if len(streamErrs) != 1 || streamErrs[0].IntendedStatus != http.StatusBadGateway {
+		t.Fatalf("stream error marker missing or wrong: %+v", streamErrs)
+	}
+}
+
+func TestResponsesStreamExhaustedPathsRecordUpstreamError(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(h *GatewayHandler, c *gin.Context)
+	}{
+		{
+			name: "selection exhausted without last failover error",
+			run: func(h *GatewayHandler, c *gin.Context) {
+				h.handleResponsesFailoverExhausted(c, nil, true)
+			},
+		},
+		{
+			name: "profit veto exhausted",
+			run: func(h *GatewayHandler, c *gin.Context) {
+				h.responsesErrorResponseAware(c, http.StatusServiceUnavailable, "api_error", profitVetoExhaustedMessage, true)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &recorderTestMetricRepo{}
+			svc := service.NewMetricsService(repo, service.MetricsOptions{Buffer: 4, FlushInterval: time.Millisecond})
+			svc.Start()
+
+			c, writer := newRecorderTestContext()
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			recorder := newRequestMetricRecorder()
+			recorder.Configure(svc, newRecorderTestAPIKey(), 11)
+			writeSlotWaitHeartbeat(c, ": ping\n\n")
+
+			h := &GatewayHandler{}
+			tt.run(h, c)
+			recorder.Finish(c)
+
+			rows := flushRecorderMetrics(t, svc, repo)
+			if len(rows) != 1 {
+				t.Fatalf("want 1 metric, got %d", len(rows))
+			}
+			if !rows[0].UpstreamError {
+				t.Fatal("stream exhaustion after 200 heartbeat must be upstream_error")
+			}
+			if !strings.Contains(writer.Body.String(), "response.failed") {
+				t.Fatalf("missing response.failed terminal frame: %q", writer.Body.String())
+			}
+			if len(service.GetOpsStreamErrors(c)) == 0 {
+				t.Fatal("missing ops stream error marker")
+			}
+		})
 	}
 }

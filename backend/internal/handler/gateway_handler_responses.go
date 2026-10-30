@@ -225,7 +225,8 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				if fs.LastFailoverErr != nil {
 					h.handleResponsesFailoverExhausted(c, fs.LastFailoverErr, streamStarted)
 				} else {
-					h.responsesErrorResponse(c, http.StatusBadGateway, "server_error", "All available accounts exhausted")
+					// 心跳可能已提交 200；交给统一的流感知错误出口补终止帧并标记流内失败。
+					h.handleResponsesFailoverExhausted(c, nil, streamStarted)
 				}
 				return
 			}
@@ -267,7 +268,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 			reqLog.Debug("gateway.responses.account_slot_profit_vetoed", zap.Int64("account_id", account.ID), zap.String("reason", reason))
 			if fs.RecordProfitVeto(account.ID) == FailoverExhausted {
 				reqLog.Warn("gateway.responses.profit_veto_attempts_exhausted", zap.Int("profit_veto_count", fs.ProfitVetoCount()))
-				h.responsesErrorResponse(c, http.StatusServiceUnavailable, "api_error", profitVetoExhaustedMessage)
+				h.responsesErrorResponseAware(c, http.StatusServiceUnavailable, "api_error", profitVetoExhaustedMessage, streamStarted)
 				return
 			}
 			continue
@@ -397,6 +398,19 @@ func (h *GatewayHandler) responsesErrorResponse(c *gin.Context, status int, code
 			"message": message,
 		},
 	})
+}
+
+// responsesErrorResponseAware 在响应已提交（心跳/首包）时改用 SSE 终止帧，
+// 避免把 JSON 错误体追加进 SSE 流，并留下流内失败标记供指标归因。
+func (h *GatewayHandler) responsesErrorResponseAware(c *gin.Context, status int, code, message string, streamStarted bool) {
+	if !streamStarted || c.Writer == nil || !c.Writer.Written() {
+		h.responsesErrorResponse(c, status, code, message)
+		return
+	}
+	service.MarkOpsStreamError(c, code, message, status)
+	if c.Writer.Size() <= 0 || gatewayStreamHasOnlyHeartbeats(c) {
+		writeResponsesFailedSSE(c, code, "", message)
+	}
 }
 
 // handleResponsesFailoverExhausted writes a failover-exhausted error in Responses format.

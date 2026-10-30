@@ -43,7 +43,8 @@ type RequestMetric struct {
 	MerchantID *int64
 	Model      string
 	StatusCode int
-	// UpstreamError 由 ClassifyUpstreamFailure 判定：5xx 或未写出响应（超时）为 true，
+	// UpstreamError 由 ClassifyUpstreamFailure 判定：5xx、未写出响应（status=0，
+	// 超时/响应前断开），以及 2xx 已提交后带内流失败为 true；
 	// 4xx 属于用户错误，不计入商户侧失败。
 	UpstreamError       bool
 	DurationMS          int
