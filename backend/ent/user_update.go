@@ -108,6 +108,33 @@ func (_u *UserUpdate) SetNillableRole(v *string) *UserUpdate {
 	return _u
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (_u *UserUpdate) SetMerchantID(v int64) *UserUpdate {
+	_u.mutation.ResetMerchantID()
+	_u.mutation.SetMerchantID(v)
+	return _u
+}
+
+// SetNillableMerchantID sets the "merchant_id" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableMerchantID(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetMerchantID(*v)
+	}
+	return _u
+}
+
+// AddMerchantID adds value to the "merchant_id" field.
+func (_u *UserUpdate) AddMerchantID(v int64) *UserUpdate {
+	_u.mutation.AddMerchantID(v)
+	return _u
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (_u *UserUpdate) ClearMerchantID() *UserUpdate {
+	_u.mutation.ClearMerchantID()
+	return _u
+}
+
 // SetBalance sets the "balance" field.
 func (_u *UserUpdate) SetBalance(v float64) *UserUpdate {
 	_u.mutation.ResetBalance()
@@ -1026,6 +1053,15 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Role(); ok {
 		_spec.SetField(user.FieldRole, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.MerchantID(); ok {
+		_spec.SetField(user.FieldMerchantID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMerchantID(); ok {
+		_spec.AddField(user.FieldMerchantID, field.TypeInt64, value)
+	}
+	if _u.mutation.MerchantIDCleared() {
+		_spec.ClearField(user.FieldMerchantID, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.Balance(); ok {
 		_spec.SetField(user.FieldBalance, field.TypeFloat64, value)
 	}
@@ -1798,6 +1834,33 @@ func (_u *UserUpdateOne) SetNillableRole(v *string) *UserUpdateOne {
 	if v != nil {
 		_u.SetRole(*v)
 	}
+	return _u
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (_u *UserUpdateOne) SetMerchantID(v int64) *UserUpdateOne {
+	_u.mutation.ResetMerchantID()
+	_u.mutation.SetMerchantID(v)
+	return _u
+}
+
+// SetNillableMerchantID sets the "merchant_id" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableMerchantID(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetMerchantID(*v)
+	}
+	return _u
+}
+
+// AddMerchantID adds value to the "merchant_id" field.
+func (_u *UserUpdateOne) AddMerchantID(v int64) *UserUpdateOne {
+	_u.mutation.AddMerchantID(v)
+	return _u
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (_u *UserUpdateOne) ClearMerchantID() *UserUpdateOne {
+	_u.mutation.ClearMerchantID()
 	return _u
 }
 
@@ -2748,6 +2811,15 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Role(); ok {
 		_spec.SetField(user.FieldRole, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MerchantID(); ok {
+		_spec.SetField(user.FieldMerchantID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMerchantID(); ok {
+		_spec.AddField(user.FieldMerchantID, field.TypeInt64, value)
+	}
+	if _u.mutation.MerchantIDCleared() {
+		_spec.ClearField(user.FieldMerchantID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.Balance(); ok {
 		_spec.SetField(user.FieldBalance, field.TypeFloat64, value)

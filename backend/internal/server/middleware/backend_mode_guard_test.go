@@ -103,6 +103,12 @@ func TestBackendModeUserGuard(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
+			name:       "enabled_merchant_allowed",
+			enabled:    "true",
+			role:       stringPtr("merchant"),
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:       "enabled_user_blocked",
 			enabled:    "true",
 			role:       stringPtr("user"),

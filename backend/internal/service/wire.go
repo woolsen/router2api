@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 	dbent "github.com/woolsen/router2api/ent"
 	"github.com/woolsen/router2api/internal/config"
 	"github.com/woolsen/router2api/internal/payment"
@@ -13,8 +15,6 @@ import (
 	"github.com/woolsen/router2api/internal/pkg/claude"
 	"github.com/woolsen/router2api/internal/pkg/logger"
 	"github.com/woolsen/router2api/internal/pkg/xai"
-	"github.com/google/wire"
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -901,6 +901,8 @@ var ProviderSet = wire.NewSet(
 	NewAnnouncementService,
 	NewMerchantService,
 	NewMerchantOnboardingService,
+	NewMerchantConsoleService,
+	wire.Bind(new(MerchantConsoleReader), new(*MerchantConsoleService)),
 	NewAdminService,
 	NewGatewayService,
 	NewOpenAIGatewayService,

@@ -68,6 +68,7 @@ type Handlers struct {
 	AvailableChannel *AvailableChannelHandler
 	ModelPlaza       *ModelPlazaHandler
 	Market           *MarketGroupsHandler
+	MerchantConsole  *MerchantConsoleHandler
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
 }

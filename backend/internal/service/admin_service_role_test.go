@@ -37,6 +37,19 @@ func TestAdminService_CreateUser_DefaultsToUserRole(t *testing.T) {
 	require.Equal(t, RoleUser, user.Role)
 }
 
+func TestAdminService_CreateUser_WithMerchantRole(t *testing.T) {
+	repo := &userRepoStub{nextID: 33}
+	svc := &adminServiceImpl{userRepo: repo}
+
+	user, err := svc.CreateUser(context.Background(), &CreateUserInput{
+		Email:    "merchant@test.com",
+		Password: "strong-pass",
+		Role:     RoleMerchant,
+	})
+	require.NoError(t, err)
+	require.Equal(t, RoleMerchant, user.Role)
+}
+
 func TestAdminService_CreateUser_InvalidRoleRejected(t *testing.T) {
 	repo := &userRepoStub{nextID: 32}
 	svc := &adminServiceImpl{userRepo: repo}
@@ -110,6 +123,17 @@ func TestAdminService_UpdateUser_DemoteLastAdminRejected(t *testing.T) {
 	require.Contains(t, err.Error(), "last admin")
 	require.Nil(t, repo.lastUpdated, "最后一个管理员不应被降级持久化")
 	require.Equal(t, 1, repo.listCalls, "降级路径应触发管理员计数")
+}
+
+func TestAdminService_UpdateUser_DemoteLastAdminToMerchantRejected(t *testing.T) {
+	base := &userRepoStub{user: &User{ID: 42, Email: "a@example.com", Role: RoleAdmin}}
+	repo := &roleGuardUserRepoStub{rpmUserRepoStub: &rpmUserRepoStub{userRepoStub: base}, adminTotal: 1}
+	svc := &adminServiceImpl{userRepo: repo, redeemCodeRepo: &redeemRepoStub{}}
+
+	_, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{Role: RoleMerchant})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "last admin")
+	require.Nil(t, repo.lastUpdated, "最后一个管理员不应被降级持久化")
 }
 
 func TestAdminService_UpdateUser_DemoteAdminAllowedWhenOthersExist(t *testing.T) {

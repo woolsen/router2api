@@ -46,6 +46,11 @@ func (User) Fields() []ent.Field {
 		field.String("role").
 			MaxLen(20).
 			Default(domain.RoleUser),
+		// MerchantID 是商户角色的归属；nil 表示普通用户或未绑定商户。
+		field.Int64("merchant_id").
+			Optional().
+			Nillable().
+			Comment("所属商户；nil 表示非商户账号"),
 		field.Float("balance").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),
@@ -148,5 +153,6 @@ func (User) Indexes() []ent.Index {
 		// email 字段已在 Fields() 中声明 Unique()，无需重复索引
 		index.Fields("status"),
 		index.Fields("deleted_at"),
+		index.Fields("merchant_id"),
 	}
 }

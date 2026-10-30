@@ -500,6 +500,7 @@ import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
+import { resolveLandingPath } from '@/router/landing'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 
 const { t } = useI18n()
@@ -537,8 +538,7 @@ const modelPlazaRequiresAuth = computed(
 const showModelPlazaEntry = computed(
   () => modelPlazaEnabled.value && (isAuthenticated.value || !modelPlazaRequiresAuth.value),
 )
-const isAdmin = computed(() => authStore.isAdmin)
-const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/dashboard')
+const dashboardPath = computed(() => resolveLandingPath(authStore.user?.role))
 const userInitial = computed(() => {
   const user = authStore.user
   if (!user || !user.email) return ''

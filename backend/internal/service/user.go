@@ -18,11 +18,13 @@ type User struct {
 	AvatarSHA256   string
 	PasswordHash   string
 	Role           string
-	Balance        float64
-	FrozenBalance  float64
-	Concurrency    int
-	Status         string
-	AllowedGroups  []int64
+	// MerchantID 是商户角色的归属；nil 表示该用户不是商户账号。
+	MerchantID    *int64
+	Balance       float64
+	FrozenBalance float64
+	Concurrency   int
+	Status        string
+	AllowedGroups []int64
 	// RestrictPublicGroups narrows the public groups this user may bind to the
 	// ones listed in AllowedGroups. False keeps the default, where every public
 	// group is bindable.

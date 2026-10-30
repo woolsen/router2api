@@ -12,6 +12,7 @@ import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
+import { resolveLandingPath } from './landing'
 import { resolveRouteDocumentTitle } from './title'
 
 /**
@@ -201,6 +202,23 @@ const routes: RouteRecordRaw[] = [
       title: 'Dashboard',
       titleKey: 'dashboard.title',
       descriptionKey: 'dashboard.welcomeMessage'
+    }
+  },
+  {
+    path: '/merchant',
+    redirect: '/merchant/dashboard'
+  },
+  {
+    path: '/merchant/dashboard',
+    name: 'MerchantDashboard',
+    component: () => import('@/views/merchant/DashboardView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresMerchant: true,
+      hideInMenu: true,
+      title: 'Merchant Console',
+      titleKey: 'merchant.dashboard.title',
+      descriptionKey: 'merchant.dashboard.description'
     }
   },
   {
@@ -816,6 +834,7 @@ router.beforeEach(async (to, _from, next) => {
   // Check if route requires authentication
   const requiresAuth = to.meta.requiresAuth !== false // Default to true
   const requiresAdmin = to.meta.requiresAdmin === true
+  const requiresMerchant = to.meta.requiresMerchant === true
 
   if (to.path === '/setup') {
     try {
@@ -833,14 +852,15 @@ router.beforeEach(async (to, _from, next) => {
   if (!requiresAuth) {
     // If already authenticated and trying to access login/register, redirect to appropriate dashboard
     if (authStore.isAuthenticated && (to.path === '/login' || to.path === '/register')) {
-      // In backend mode, non-admin users should NOT be redirected away from login
+      // In backend mode, non-admin/non-merchant users should NOT be redirected away from login
       // (they are blocked from all protected routes, so redirecting would cause a loop)
-      if (appStore.backendModeEnabled && !authStore.isAdmin) {
+      if (appStore.backendModeEnabled && !authStore.isAdmin && !authStore.isMerchant) {
         next()
         return
       }
-      // Admin users go to admin dashboard, regular users go to user dashboard
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      // Admin users go to admin dashboard, merchants to merchant console,
+      // regular users go to the user dashboard.
+      next(resolveLandingPath(authStore.user?.role))
       return
     }
     // Model Plaza:公开路由但受「启用开关 + 可选强制登录」双重控制(后端同口径 fail-closed)
@@ -857,9 +877,7 @@ router.beforeEach(async (to, _from, next) => {
       if (appStore.publicSettingsLoaded && plazaSettings?.model_plaza_enabled === false) {
         next(
           authStore.isAuthenticated
-            ? authStore.isAdmin
-              ? '/admin/dashboard'
-              : '/dashboard'
+            ? resolveLandingPath(authStore.user?.role)
             : '/home'
         )
         return
@@ -898,8 +916,14 @@ router.beforeEach(async (to, _from, next) => {
 
   // Check admin requirement
   if (requiresAdmin && !authStore.isAdmin) {
-    // User is authenticated but not admin, redirect to user dashboard
-    next('/dashboard')
+    // User is authenticated but not admin, redirect to their own dashboard
+    next(resolveLandingPath(authStore.user?.role))
+    return
+  }
+
+  // 商户后台只对 merchant 角色开放；其他角色回到首页。
+  if (requiresMerchant && !authStore.isMerchant) {
+    next('/home')
     return
   }
 

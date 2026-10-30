@@ -102,6 +102,20 @@ func (_c *UserCreate) SetNillableRole(v *string) *UserCreate {
 	return _c
 }
 
+// SetMerchantID sets the "merchant_id" field.
+func (_c *UserCreate) SetMerchantID(v int64) *UserCreate {
+	_c.mutation.SetMerchantID(v)
+	return _c
+}
+
+// SetNillableMerchantID sets the "merchant_id" field if the given value is not nil.
+func (_c *UserCreate) SetNillableMerchantID(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetMerchantID(*v)
+	}
+	return _c
+}
+
 // SetBalance sets the "balance" field.
 func (_c *UserCreate) SetBalance(v float64) *UserCreate {
 	_c.mutation.SetBalance(v)
@@ -817,6 +831,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldRole, field.TypeString, value)
 		_node.Role = value
 	}
+	if value, ok := _c.mutation.MerchantID(); ok {
+		_spec.SetField(user.FieldMerchantID, field.TypeInt64, value)
+		_node.MerchantID = &value
+	}
 	if value, ok := _c.mutation.Balance(); ok {
 		_spec.SetField(user.FieldBalance, field.TypeFloat64, value)
 		_node.Balance = value
@@ -1220,6 +1238,30 @@ func (u *UserUpsert) SetRole(v string) *UserUpsert {
 // UpdateRole sets the "role" field to the value that was provided on create.
 func (u *UserUpsert) UpdateRole() *UserUpsert {
 	u.SetExcluded(user.FieldRole)
+	return u
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *UserUpsert) SetMerchantID(v int64) *UserUpsert {
+	u.Set(user.FieldMerchantID, v)
+	return u
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *UserUpsert) UpdateMerchantID() *UserUpsert {
+	u.SetExcluded(user.FieldMerchantID)
+	return u
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *UserUpsert) AddMerchantID(v int64) *UserUpsert {
+	u.Add(user.FieldMerchantID, v)
+	return u
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *UserUpsert) ClearMerchantID() *UserUpsert {
+	u.SetNull(user.FieldMerchantID)
 	return u
 }
 
@@ -1636,6 +1678,34 @@ func (u *UserUpsertOne) SetRole(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateRole() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRole()
+	})
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *UserUpsertOne) SetMerchantID(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetMerchantID(v)
+	})
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *UserUpsertOne) AddMerchantID(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddMerchantID(v)
+	})
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateMerchantID() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateMerchantID()
+	})
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *UserUpsertOne) ClearMerchantID() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearMerchantID()
 	})
 }
 
@@ -2267,6 +2337,34 @@ func (u *UserUpsertBulk) SetRole(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateRole() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRole()
+	})
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (u *UserUpsertBulk) SetMerchantID(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetMerchantID(v)
+	})
+}
+
+// AddMerchantID adds v to the "merchant_id" field.
+func (u *UserUpsertBulk) AddMerchantID(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddMerchantID(v)
+	})
+}
+
+// UpdateMerchantID sets the "merchant_id" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateMerchantID() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateMerchantID()
+	})
+}
+
+// ClearMerchantID clears the value of the "merchant_id" field.
+func (u *UserUpsertBulk) ClearMerchantID() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearMerchantID()
 	})
 }
 

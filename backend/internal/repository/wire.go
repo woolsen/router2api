@@ -6,11 +6,11 @@ import (
 	"errors"
 
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 	"github.com/woolsen/router2api/ent"
 	"github.com/woolsen/router2api/internal/config"
 	"github.com/woolsen/router2api/internal/service"
-	"github.com/google/wire"
-	"github.com/redis/go-redis/v9"
 )
 
 // ProvideConcurrencyCache 创建并发控制缓存，从配置读取 TTL 参数
@@ -109,6 +109,7 @@ var ProviderSet = wire.NewSet(
 	NewContentModerationRepository,
 	NewAffiliateRepository,
 	NewMerchantRepository,
+	NewMerchantConsoleRepository,
 	NewSettlementRepository,
 	NewRequestMetricRepository,
 	NewGroupMetricRepository,

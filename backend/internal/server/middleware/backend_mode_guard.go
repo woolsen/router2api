@@ -18,7 +18,7 @@ func BackendModeUserGuard(settingService *service.SettingService) gin.HandlerFun
 			return
 		}
 		role, _ := GetUserRoleFromContext(c)
-		if role == "admin" {
+		if role == service.RoleAdmin || role == service.RoleMerchant {
 			c.Next()
 			return
 		}

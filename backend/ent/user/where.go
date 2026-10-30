@@ -85,6 +85,11 @@ func Role(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRole, v))
 }
 
+// MerchantID applies equality check predicate on the "merchant_id" field. It's identical to MerchantIDEQ.
+func MerchantID(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldMerchantID, v))
+}
+
 // Balance applies equality check predicate on the "balance" field. It's identical to BalanceEQ.
 func Balance(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldBalance, v))
@@ -503,6 +508,56 @@ func RoleEqualFold(v string) predicate.User {
 // RoleContainsFold applies the ContainsFold predicate on the "role" field.
 func RoleContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldRole, v))
+}
+
+// MerchantIDEQ applies the EQ predicate on the "merchant_id" field.
+func MerchantIDEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldMerchantID, v))
+}
+
+// MerchantIDNEQ applies the NEQ predicate on the "merchant_id" field.
+func MerchantIDNEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldMerchantID, v))
+}
+
+// MerchantIDIn applies the In predicate on the "merchant_id" field.
+func MerchantIDIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldMerchantID, vs...))
+}
+
+// MerchantIDNotIn applies the NotIn predicate on the "merchant_id" field.
+func MerchantIDNotIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldMerchantID, vs...))
+}
+
+// MerchantIDGT applies the GT predicate on the "merchant_id" field.
+func MerchantIDGT(v int64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldMerchantID, v))
+}
+
+// MerchantIDGTE applies the GTE predicate on the "merchant_id" field.
+func MerchantIDGTE(v int64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldMerchantID, v))
+}
+
+// MerchantIDLT applies the LT predicate on the "merchant_id" field.
+func MerchantIDLT(v int64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldMerchantID, v))
+}
+
+// MerchantIDLTE applies the LTE predicate on the "merchant_id" field.
+func MerchantIDLTE(v int64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldMerchantID, v))
+}
+
+// MerchantIDIsNil applies the IsNil predicate on the "merchant_id" field.
+func MerchantIDIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldMerchantID))
+}
+
+// MerchantIDNotNil applies the NotNil predicate on the "merchant_id" field.
+func MerchantIDNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldMerchantID))
 }
 
 // BalanceEQ applies the EQ predicate on the "balance" field.
