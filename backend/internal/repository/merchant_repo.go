@@ -32,6 +32,7 @@ func (r *merchantRepository) Create(ctx context.Context, m *service.Merchant) er
 		return err
 	}
 	m.ID = created.ID
+	m.CreatedAt = created.CreatedAt
 	return nil
 }
 
@@ -92,6 +93,7 @@ func merchantEntityToService(m *dbent.Merchant) *service.Merchant {
 		Contact:        contact,
 		Status:         m.Status,
 		CommissionRate: m.CommissionRate,
+		CreatedAt:      m.CreatedAt,
 	}
 }
 

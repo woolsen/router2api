@@ -171,9 +171,11 @@ func ProvideMarketGroupsHandler(
 	plaza *service.ModelPlazaService,
 	apiKeyService *service.APIKeyService,
 	metricsAggregator *service.MetricsAggregator,
+	merchantService *service.MerchantService,
 ) *MarketGroupsHandler {
 	h := NewMarketGroupsHandler(plaza, apiKeyService)
 	h.SetMetricsSource(metricsAggregator)
+	h.SetMerchantSource(merchantService)
 	return h
 }
 
@@ -221,6 +223,7 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	marketGroupsHandler *MarketGroupsHandler,
 	merchantConsoleHandler *MerchantConsoleHandler,
+	merchantApplyHandler *MerchantApplyHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
 	_ *service.IdempotencyCoordinator,
@@ -249,6 +252,7 @@ func ProvideHandlers(
 		ModelPlaza:       modelPlazaHandler,
 		Market:           marketGroupsHandler,
 		MerchantConsole:  merchantConsoleHandler,
+		MerchantApply:    merchantApplyHandler,
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
 	}
@@ -277,6 +281,7 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	ProvideMarketGroupsHandler,
 	NewMerchantConsoleHandler,
+	NewMerchantApplyHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
 

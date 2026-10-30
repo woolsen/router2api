@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	dbent "github.com/woolsen/router2api/ent"
 	"github.com/woolsen/router2api/ent/apikey"
 	"github.com/woolsen/router2api/ent/authidentity"
@@ -22,7 +23,6 @@ import (
 	"github.com/woolsen/router2api/ent/usersubscription"
 	"github.com/woolsen/router2api/internal/pkg/pagination"
 	"github.com/woolsen/router2api/internal/service"
-	"github.com/lib/pq"
 
 	entsql "entgo.io/ent/dialect/sql"
 )
@@ -33,8 +33,16 @@ type userRepository struct {
 }
 
 var _ service.RedeemUserAdjustmentRepository = (*userRepository)(nil)
+var _ service.MerchantApplyUserRepository = (*userRepository)(nil)
 
 func NewUserRepository(client *dbent.Client, sqlDB *sql.DB) service.UserRepository {
+	return newUserRepositoryWithSQL(client, sqlDB)
+}
+
+// NewMerchantApplyUserRepository exposes the self-serve onboarding user
+// capability without widening service.UserRepository (which many test
+// doubles implement explicitly).
+func NewMerchantApplyUserRepository(client *dbent.Client, sqlDB *sql.DB) service.MerchantApplyUserRepository {
 	return newUserRepositoryWithSQL(client, sqlDB)
 }
 
@@ -825,6 +833,17 @@ func (r *userRepository) filterUsersByAttributes(ctx context.Context, attrs map[
 		return nil, err
 	}
 	return result, nil
+}
+
+// PromoteToMerchant 把普通用户升级为商户账号，并绑定唯一的 merchant_id。
+// 角色与归属必须一次写入：只改 role 会让商户作用域中间件因 merchant_id 为空拒绝请求。
+func (r *userRepository) PromoteToMerchant(ctx context.Context, userID, merchantID int64) error {
+	client := clientFromContext(ctx, r.client)
+	_, err := client.User.UpdateOneID(userID).
+		SetRole(service.RoleMerchant).
+		SetMerchantID(merchantID).
+		Save(ctx)
+	return translatePersistenceError(err, service.ErrUserNotFound, nil)
 }
 
 func (r *userRepository) UpdateBalance(ctx context.Context, id int64, amount float64) error {

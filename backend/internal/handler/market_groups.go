@@ -41,6 +41,11 @@ type MarketMetricsSource interface {
 	HealthMany(ctx context.Context, groupIDs []int64) (map[int64]service.Health, error)
 }
 
+// MarketMerchantSource 提供商户入驻时间，用于推导“新商户”7 天标签。
+type MarketMerchantSource interface {
+	Get(ctx context.Context, id int64) (*service.Merchant, error)
+}
+
 // MarketGroupsHandler 处理货架（market）的只读查询。
 //
 // 货架只展示入驻商户（merchant_id IS NOT NULL）且状态为 active、且对当前用户可见的
@@ -50,6 +55,7 @@ type MarketGroupsHandler struct {
 	source     MarketGroupSource
 	visibility MarketVisibilitySource
 	metrics    MarketMetricsSource
+	merchants  MarketMerchantSource
 }
 
 // NewMarketGroupsHandler 创建货架 handler。
@@ -60,6 +66,11 @@ func NewMarketGroupsHandler(source MarketGroupSource, visibility MarketVisibilit
 // SetMetricsSource 注入小时指标来源。未注入时货架仍然可用，只是 stats 恒为 null。
 func (h *MarketGroupsHandler) SetMetricsSource(metrics MarketMetricsSource) {
 	h.metrics = metrics
+}
+
+// SetMerchantSource 注入商户来源。未注入时不展示“新商户”标签。
+func (h *MarketGroupsHandler) SetMerchantSource(merchants MarketMerchantSource) {
+	h.merchants = merchants
 }
 
 // marketGroup 是货架分组条目（对外白名单字段）。
@@ -88,6 +99,8 @@ type marketGroup struct {
 	// Degraded 只标记、不下架；Status 仍为 active。
 	Degraded       bool   `json:"degraded"`
 	DegradedReason string `json:"degraded_reason"`
+	// NewMerchant 由 merchants.created_at 推导，入驻 7 天内为 true；不存布尔字段。
+	NewMerchant bool `json:"new_merchant"`
 	// AsOf 是最后一个已聚合小时的截止时间，不是请求时刻。没有聚合数据时为 null。
 	AsOf *time.Time `json:"as_of"`
 }
@@ -186,6 +199,26 @@ func (h *MarketGroupsHandler) List(c *gin.Context) {
 
 	acceptLanguage := c.GetHeader("Accept-Language")
 	now := time.Now()
+	newMerchants := map[int64]bool{}
+	if h.merchants != nil {
+		seen := make(map[int64]struct{})
+		for i := range visible {
+			merchantID := visible[i].MerchantID
+			if merchantID == nil {
+				continue
+			}
+			if _, ok := seen[*merchantID]; ok {
+				continue
+			}
+			seen[*merchantID] = struct{}{}
+			merchant, err := h.merchants.Get(c.Request.Context(), *merchantID)
+			if err != nil {
+				slog.Warn("market_merchant_lookup_failed", "error", err, "merchant_id", *merchantID)
+				continue
+			}
+			newMerchants[*merchantID] = merchant.IsNewAt(now)
+		}
+	}
 	out := make([]marketGroup, 0, len(visible))
 	for i := range visible {
 		g := &visible[i]
@@ -203,6 +236,10 @@ func (h *MarketGroupsHandler) List(c *gin.Context) {
 
 		summary := summaries[g.ID]
 		health := healths[g.ID]
+		isNewMerchant := false
+		if g.MerchantID != nil {
+			isNewMerchant = newMerchants[*g.MerchantID]
+		}
 
 		out = append(out, marketGroup{
 			ID:             g.ID,
@@ -218,6 +255,7 @@ func (h *MarketGroupsHandler) List(c *gin.Context) {
 			SampleSize:     summary.SampleSize,
 			Degraded:       health.Degraded,
 			DegradedReason: health.Reason,
+			NewMerchant:    isNewMerchant,
 			AsOf:           summary.AsOf,
 		})
 	}

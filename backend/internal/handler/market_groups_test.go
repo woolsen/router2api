@@ -65,6 +65,7 @@ type marketGroupResponse struct {
 	SampleSize     int                  `json:"sample_size"`
 	Degraded       bool                 `json:"degraded"`
 	DegradedReason string               `json:"degraded_reason"`
+	NewMerchant    bool                 `json:"new_merchant"`
 	AsOf           *time.Time           `json:"as_of"`
 }
 
@@ -155,6 +156,19 @@ func doGETWithMetrics(
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &envelope), "body: %s", w.Body.String())
 	return envelope.Data, w.Body.Bytes()
+}
+
+// fakeMarketMerchants 是“新商户”标签测试的商户来源替身。
+type fakeMarketMerchants struct {
+	items map[int64]*service.Merchant
+}
+
+func (f *fakeMarketMerchants) Get(_ context.Context, id int64) (*service.Merchant, error) {
+	merchant, ok := f.items[id]
+	if !ok {
+		return nil, service.ErrMerchantNotFound
+	}
+	return merchant, nil
 }
 
 // marketFixture 覆盖四种分组：两个普通入驻商户分组（倍率乱序）、一个专属入驻商户分组、
@@ -478,7 +492,7 @@ func TestMarketGroupsHidesMerchantIdentityAndUpstream(t *testing.T) {
 	allowed := []string{
 		"id", "name", "platform", "rate_multiplier", "rate_is_estimate",
 		"peak_rate", "models", "status", "stats", "sample_size",
-		"degraded", "degraded_reason", "as_of",
+		"degraded", "degraded_reason", "new_merchant", "as_of",
 	}
 	require.Len(t, envelope.Data[0], len(allowed), "unexpected extra fields in market DTO")
 	for _, key := range allowed {
@@ -594,4 +608,37 @@ func TestMarketGroupsMarksEstimateWhenImageOrVideoRateIsIndependent(t *testing.T
 	require.Len(t, resp, 1)
 	require.True(t, resp[0].RateIsEstimate,
 		"a group with an independent image rate cannot be represented by one token rate")
+}
+
+// “新商户”标签必须由 merchants.created_at 推导：入驻 7 天内为 true，超过即 false。
+func TestMarketGroupsNewMerchantTagDerivedFromCreatedAt(t *testing.T) {
+	merchantA := int64(101)
+	merchantB := int64(202)
+	now := time.Now()
+	source := &fakeMarketGroupSource{groups: marketFixture()}
+	visibility := newFakeMarketVisibility()
+	h := NewMarketGroupsHandler(source, visibility)
+	h.SetMerchantSource(&fakeMarketMerchants{items: map[int64]*service.Merchant{
+		merchantA: {ID: merchantA, CreatedAt: now.Add(-2 * 24 * time.Hour)},
+		merchantB: {ID: merchantB, CreatedAt: now.Add(-8 * 24 * time.Hour)},
+	}})
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/market/groups", nil)
+	c.Set("user", middleware.AuthSubject{UserID: 7})
+	h.List(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var envelope struct {
+		Data []marketGroupResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &envelope))
+	byID := make(map[int64]marketGroupResponse, len(envelope.Data))
+	for _, group := range envelope.Data {
+		byID[group.ID] = group
+	}
+	require.True(t, byID[1].NewMerchant, "merchant created 2 days ago must carry the new-merchant tag")
+	require.False(t, byID[2].NewMerchant, "merchant created 8 days ago must not carry the tag")
 }

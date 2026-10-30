@@ -65,6 +65,8 @@ export interface MarketGroup {
   /** 只做展示标记，分组仍可正常使用。 */
   degraded: boolean
   degraded_reason: string
+  /** 商户入驻 7 天内为 true；由 merchants.created_at 推导，7 天后自动消失。 */
+  new_merchant?: boolean
   /** 最后一档指标的聚合截止时间；没有聚合数据时为 null。 */
   as_of: string | null
 }

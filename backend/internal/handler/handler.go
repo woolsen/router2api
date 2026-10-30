@@ -69,6 +69,7 @@ type Handlers struct {
 	ModelPlaza       *ModelPlazaHandler
 	Market           *MarketGroupsHandler
 	MerchantConsole  *MerchantConsoleHandler
+	MerchantApply    *MerchantApplyHandler
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
 }

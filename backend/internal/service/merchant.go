@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	infraerrors "github.com/woolsen/router2api/internal/pkg/errors"
@@ -17,6 +18,8 @@ const (
 
 	// MerchantDefaultCommissionRate 是未显式指定时的平台抽成比例（8%）。
 	MerchantDefaultCommissionRate = 0.08
+	// MerchantNewWindow 是“新商户”标签的展示窗口，由 created_at 推导，不落布尔字段。
+	MerchantNewWindow = 7 * 24 * time.Hour
 )
 
 var (
@@ -36,6 +39,16 @@ type Merchant struct {
 	Contact        string
 	Status         string
 	CommissionRate float64
+	CreatedAt      time.Time
+}
+
+// IsNewAt 报告商户在 now 时刻是否仍处于“新商户”窗口（created_at 起 7 天）。
+// 标签完全由时间推导，7 天后自动消失。
+func (m *Merchant) IsNewAt(now time.Time) bool {
+	if m == nil || m.CreatedAt.IsZero() {
+		return false
+	}
+	return now.Sub(m.CreatedAt) < MerchantNewWindow
 }
 
 // CreateMerchantInput 是创建商户的入参；未指定抽成比例时使用默认值。

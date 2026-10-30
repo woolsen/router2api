@@ -209,6 +209,18 @@ const routes: RouteRecordRaw[] = [
     redirect: '/merchant/dashboard'
   },
   {
+    path: '/merchant/apply',
+    name: 'MerchantApply',
+    component: () => import('@/views/merchant/ApplyView.vue'),
+    meta: {
+      requiresAuth: true,
+      hideInMenu: true,
+      title: 'Merchant Application',
+      titleKey: 'merchant.apply.title',
+      descriptionKey: 'merchant.apply.description'
+    }
+  },
+  {
     path: '/merchant/dashboard',
     name: 'MerchantDashboard',
     component: () => import('@/views/merchant/DashboardView.vue'),
