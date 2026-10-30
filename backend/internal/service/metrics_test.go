@@ -204,3 +204,68 @@ func TestMetricsServiceCountsFailedInserts(t *testing.T) {
 		t.Fatal("want failed counter to be observable")
 	}
 }
+
+// blockingMetricRepo 模拟落库卡住：worker 阻塞时 Record 仍必须立即返回。
+type blockingMetricRepo struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingMetricRepo() *blockingMetricRepo {
+	return &blockingMetricRepo{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (r *blockingMetricRepo) InsertRequestMetrics(ctx context.Context, _ []RequestMetric) error {
+	r.once.Do(func() { close(r.started) })
+	select {
+	case <-r.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestRecordMetricDoesNotBlockWhenInsertHangs(t *testing.T) {
+	repo := newBlockingMetricRepo()
+	svc := NewMetricsService(repo, MetricsOptions{
+		Buffer:        4,
+		BatchSize:     1,
+		FlushInterval: time.Millisecond,
+	})
+	svc.Start()
+
+	// 先投递一条，让 worker 卡在落库上。
+	svc.Record(context.Background(), RequestMetric{RequestID: "first"})
+	select {
+	case <-repo.started:
+	case <-time.After(time.Second):
+		t.Fatal("worker never reached insert")
+	}
+
+	recordDone := make(chan struct{})
+	go func() {
+		for i := 0; i < 100; i++ {
+			svc.Record(context.Background(), RequestMetric{RequestID: fmt.Sprintf("blocked-%d", i)})
+		}
+		close(recordDone)
+	}()
+	select {
+	case <-recordDone:
+	case <-time.After(time.Second):
+		t.Fatal("Record blocked while insert hangs")
+	}
+	if svc.Dropped() == 0 {
+		t.Fatal("want drops while insert hangs")
+	}
+
+	close(repo.release)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := svc.Close(ctx); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}
