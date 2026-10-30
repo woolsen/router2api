@@ -22,8 +22,9 @@ const (
 	// defaultRequestMetricInsertTimeout 是单次落库的超时时间。
 	defaultRequestMetricInsertTimeout = 5 * time.Second
 
-	requestMetricRequestIDMaxLen = 64
-	requestMetricModelMaxLen     = 128
+	requestMetricRequestIDMaxLen         = 64
+	requestMetricUpstreamRequestIDMaxLen = 128
+	requestMetricModelMaxLen             = 128
 )
 
 // RequestMetric 是一次网关请求的结果快照（成功与失败都记录）。
@@ -32,9 +33,12 @@ const (
 // 分组成败率；request_metrics 为每个进入网关的已鉴权请求落一行。
 type RequestMetric struct {
 	RequestID string
-	UserID    int64
-	APIKeyID  int64
-	GroupID   int64
+	// UpstreamRequestID 是上游响应声明的请求标识，单独保存；
+	// RequestID 统一由 resolveUsageBillingRequestID 生成，与 usage_logs 一致。
+	UpstreamRequestID string
+	UserID            int64
+	APIKeyID          int64
+	GroupID           int64
 	// MerchantID 是分组归属商户的快照；nil 表示平台自营。
 	MerchantID *int64
 	Model      string
@@ -145,9 +149,12 @@ func (s *MetricsService) Record(ctx context.Context, m RequestMetric) {
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		m.RequestID = resolveUsageBillingRequestID(ctx, "")
+		// 与 usage_logs 使用同一解析规则：ctx 的 client/local ID 优先，
+		// 上游 ID 仅在无 ctx 标识或 forced durable ID 时胜出。
+		m.RequestID = resolveUsageBillingRequestID(ctx, m.UpstreamRequestID)
 	}
 	m.RequestID = truncateMetricString(m.RequestID, requestMetricRequestIDMaxLen)
+	m.UpstreamRequestID = truncateMetricString(m.UpstreamRequestID, requestMetricUpstreamRequestIDMaxLen)
 	m.Model = truncateMetricString(m.Model, requestMetricModelMaxLen)
 	select {
 	case s.ch <- m:

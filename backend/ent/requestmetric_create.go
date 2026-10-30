@@ -28,6 +28,20 @@ func (_c *RequestMetricCreate) SetRequestID(v string) *RequestMetricCreate {
 	return _c
 }
 
+// SetUpstreamRequestID sets the "upstream_request_id" field.
+func (_c *RequestMetricCreate) SetUpstreamRequestID(v string) *RequestMetricCreate {
+	_c.mutation.SetUpstreamRequestID(v)
+	return _c
+}
+
+// SetNillableUpstreamRequestID sets the "upstream_request_id" field if the given value is not nil.
+func (_c *RequestMetricCreate) SetNillableUpstreamRequestID(v *string) *RequestMetricCreate {
+	if v != nil {
+		_c.SetUpstreamRequestID(*v)
+	}
+	return _c
+}
+
 // SetUserID sets the "user_id" field.
 func (_c *RequestMetricCreate) SetUserID(v int64) *RequestMetricCreate {
 	_c.mutation.SetUserID(v)
@@ -299,6 +313,11 @@ func (_c *RequestMetricCreate) check() error {
 			return &ValidationError{Name: "request_id", err: fmt.Errorf(`ent: validator failed for field "RequestMetric.request_id": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.UpstreamRequestID(); ok {
+		if err := requestmetric.UpstreamRequestIDValidator(v); err != nil {
+			return &ValidationError{Name: "upstream_request_id", err: fmt.Errorf(`ent: validator failed for field "RequestMetric.upstream_request_id": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "RequestMetric.user_id"`)}
 	}
@@ -373,6 +392,10 @@ func (_c *RequestMetricCreate) createSpec() (*RequestMetric, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.RequestID(); ok {
 		_spec.SetField(requestmetric.FieldRequestID, field.TypeString, value)
 		_node.RequestID = value
+	}
+	if value, ok := _c.mutation.UpstreamRequestID(); ok {
+		_spec.SetField(requestmetric.FieldUpstreamRequestID, field.TypeString, value)
+		_node.UpstreamRequestID = &value
 	}
 	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(requestmetric.FieldUserID, field.TypeInt64, value)
@@ -491,6 +514,24 @@ func (u *RequestMetricUpsert) SetRequestID(v string) *RequestMetricUpsert {
 // UpdateRequestID sets the "request_id" field to the value that was provided on create.
 func (u *RequestMetricUpsert) UpdateRequestID() *RequestMetricUpsert {
 	u.SetExcluded(requestmetric.FieldRequestID)
+	return u
+}
+
+// SetUpstreamRequestID sets the "upstream_request_id" field.
+func (u *RequestMetricUpsert) SetUpstreamRequestID(v string) *RequestMetricUpsert {
+	u.Set(requestmetric.FieldUpstreamRequestID, v)
+	return u
+}
+
+// UpdateUpstreamRequestID sets the "upstream_request_id" field to the value that was provided on create.
+func (u *RequestMetricUpsert) UpdateUpstreamRequestID() *RequestMetricUpsert {
+	u.SetExcluded(requestmetric.FieldUpstreamRequestID)
+	return u
+}
+
+// ClearUpstreamRequestID clears the value of the "upstream_request_id" field.
+func (u *RequestMetricUpsert) ClearUpstreamRequestID() *RequestMetricUpsert {
+	u.SetNull(requestmetric.FieldUpstreamRequestID)
 	return u
 }
 
@@ -778,6 +819,27 @@ func (u *RequestMetricUpsertOne) SetRequestID(v string) *RequestMetricUpsertOne 
 func (u *RequestMetricUpsertOne) UpdateRequestID() *RequestMetricUpsertOne {
 	return u.Update(func(s *RequestMetricUpsert) {
 		s.UpdateRequestID()
+	})
+}
+
+// SetUpstreamRequestID sets the "upstream_request_id" field.
+func (u *RequestMetricUpsertOne) SetUpstreamRequestID(v string) *RequestMetricUpsertOne {
+	return u.Update(func(s *RequestMetricUpsert) {
+		s.SetUpstreamRequestID(v)
+	})
+}
+
+// UpdateUpstreamRequestID sets the "upstream_request_id" field to the value that was provided on create.
+func (u *RequestMetricUpsertOne) UpdateUpstreamRequestID() *RequestMetricUpsertOne {
+	return u.Update(func(s *RequestMetricUpsert) {
+		s.UpdateUpstreamRequestID()
+	})
+}
+
+// ClearUpstreamRequestID clears the value of the "upstream_request_id" field.
+func (u *RequestMetricUpsertOne) ClearUpstreamRequestID() *RequestMetricUpsertOne {
+	return u.Update(func(s *RequestMetricUpsert) {
+		s.ClearUpstreamRequestID()
 	})
 }
 
@@ -1269,6 +1331,27 @@ func (u *RequestMetricUpsertBulk) SetRequestID(v string) *RequestMetricUpsertBul
 func (u *RequestMetricUpsertBulk) UpdateRequestID() *RequestMetricUpsertBulk {
 	return u.Update(func(s *RequestMetricUpsert) {
 		s.UpdateRequestID()
+	})
+}
+
+// SetUpstreamRequestID sets the "upstream_request_id" field.
+func (u *RequestMetricUpsertBulk) SetUpstreamRequestID(v string) *RequestMetricUpsertBulk {
+	return u.Update(func(s *RequestMetricUpsert) {
+		s.SetUpstreamRequestID(v)
+	})
+}
+
+// UpdateUpstreamRequestID sets the "upstream_request_id" field to the value that was provided on create.
+func (u *RequestMetricUpsertBulk) UpdateUpstreamRequestID() *RequestMetricUpsertBulk {
+	return u.Update(func(s *RequestMetricUpsert) {
+		s.UpdateUpstreamRequestID()
+	})
+}
+
+// ClearUpstreamRequestID clears the value of the "upstream_request_id" field.
+func (u *RequestMetricUpsertBulk) ClearUpstreamRequestID() *RequestMetricUpsertBulk {
+	return u.Update(func(s *RequestMetricUpsert) {
+		s.ClearUpstreamRequestID()
 	})
 }
 

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 	"github.com/woolsen/router2api/internal/pkg/ip"
 	middleware2 "github.com/woolsen/router2api/internal/server/middleware"
 	"github.com/woolsen/router2api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -22,6 +22,8 @@ import (
 // upstream, and converts responses back to Responses format.
 func (h *GatewayHandler) Responses(c *gin.Context) {
 	streamStarted := false
+	metric := newRequestMetricRecorder()
+	defer metric.Finish(c)
 
 	requestStart := time.Now()
 
@@ -36,6 +38,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		h.responsesErrorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
 		return
 	}
+	metric.Configure(h.metricsService, apiKey, subject.UserID)
 	reqLog := requestLogger(
 		c,
 		"handler.gateway.responses",
@@ -76,6 +79,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	metric.SetModel(reqModel)
 	bindRequestedReasoningEffort(c, body, reqModel)
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !compositeTargetPlatformResolved(c, apiKey, reqModel) {
@@ -306,6 +310,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		// 提交 usage 记录。成功路径与"流中断但 Forward 已观测到 usage 的部分结果"
 		// 错误路径共用；failover 错误恒定 result=nil，不会重复计费。
 		submitForwardUsage := func(result *service.ForwardResult) {
+			metric.ObserveForward(result)
 			userAgent := c.GetHeader("User-Agent")
 			clientIP := ip.GetClientIP(c)
 			requestPayloadHash := service.HashUsageRequestPayload(body)

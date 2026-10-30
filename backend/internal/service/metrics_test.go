@@ -94,6 +94,7 @@ func TestMetricsServicePersistsBufferedMetrics(t *testing.T) {
 	merchantID := int64(42)
 	svc.Record(context.Background(), RequestMetric{
 		RequestID:           "req-ok",
+		UpstreamRequestID:   "upstream-req-ok",
 		UserID:              1,
 		APIKeyID:            2,
 		GroupID:             3,
@@ -145,6 +146,9 @@ func TestMetricsServicePersistsBufferedMetrics(t *testing.T) {
 	if ok.InputTokens != 1000 || ok.OutputTokens != 200 || ok.CacheReadTokens != 800 || ok.CacheCreationTokens != 50 {
 		t.Fatalf("unexpected token snapshot: %+v", ok)
 	}
+	if ok.UpstreamRequestID != "upstream-req-ok" {
+		t.Fatalf("upstream_request_id=%q", ok.UpstreamRequestID)
+	}
 	fail, exists := byID["req-fail"]
 	if !exists {
 		t.Fatal("req-fail not persisted")
@@ -154,26 +158,57 @@ func TestMetricsServicePersistsBufferedMetrics(t *testing.T) {
 	}
 }
 
-func TestMetricsServiceFillsRequestIDFromContext(t *testing.T) {
-	repo := newFakeMetricRepo()
-	svc := NewMetricsService(repo, MetricsOptions{Buffer: 8, FlushInterval: 5 * time.Millisecond})
-	svc.Start()
-
-	ctx := context.WithValue(context.Background(), ctxkey.ClientRequestID, "client-abc")
-	svc.Record(ctx, RequestMetric{GroupID: 7, StatusCode: 200})
-
-	closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if err := svc.Close(closeCtx); err != nil {
-		t.Fatalf("Close: %v", err)
+func TestMetricsServiceRequestIDMatchesUsageLogResolution(t *testing.T) {
+	tests := []struct {
+		name          string
+		ctx           context.Context
+		upstreamID    string
+		wantRequestID string
+	}{
+		{
+			name:          "client id wins over upstream id",
+			ctx:           context.WithValue(context.Background(), ctxkey.ClientRequestID, "client-abc"),
+			upstreamID:    "upstream-1",
+			wantRequestID: "client:client-abc",
+		},
+		{
+			name:          "upstream id when no context ids",
+			ctx:           context.Background(),
+			upstreamID:    "upstream-2",
+			wantRequestID: "upstream-2",
+		},
 	}
 
-	rows := repo.rowsSnapshot()
-	if len(rows) != 1 {
-		t.Fatalf("want 1 row, got %d", len(rows))
-	}
-	if rows[0].RequestID != "client:client-abc" {
-		t.Fatalf("want request id filled from context, got %q", rows[0].RequestID)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newFakeMetricRepo()
+			svc := NewMetricsService(repo, MetricsOptions{Buffer: 8, FlushInterval: 5 * time.Millisecond})
+			svc.Start()
+
+			svc.Record(tt.ctx, RequestMetric{GroupID: 7, StatusCode: 200, UpstreamRequestID: tt.upstreamID})
+
+			closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if err := svc.Close(closeCtx); err != nil {
+				t.Fatalf("Close: %v", err)
+			}
+
+			rows := repo.rowsSnapshot()
+			if len(rows) != 1 {
+				t.Fatalf("want 1 row, got %d", len(rows))
+			}
+			// usage_logs 用同一个解析函数生成 request_id；指标行必须与之一致。
+			wantRequestID := resolveUsageBillingRequestID(tt.ctx, tt.upstreamID)
+			if wantRequestID != tt.wantRequestID {
+				t.Fatalf("resolveUsageBillingRequestID=%q, test expectation %q", wantRequestID, tt.wantRequestID)
+			}
+			if rows[0].RequestID != wantRequestID {
+				t.Fatalf("request_id=%q, want %q", rows[0].RequestID, wantRequestID)
+			}
+			if rows[0].UpstreamRequestID != tt.upstreamID {
+				t.Fatalf("upstream_request_id=%q, want %q", rows[0].UpstreamRequestID, tt.upstreamID)
+			}
+		})
 	}
 }
 

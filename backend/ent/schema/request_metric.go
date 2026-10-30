@@ -34,6 +34,11 @@ func (RequestMetric) Fields() []ent.Field {
 		field.String("request_id").
 			MaxLen(64).
 			NotEmpty(),
+		field.String("upstream_request_id").
+			MaxLen(128).
+			Optional().
+			Nillable().
+			Comment("上游响应声明的请求 ID；NULL 表示未提供"),
 		field.Int64("user_id"),
 		field.Int64("api_key_id").
 			Default(0),

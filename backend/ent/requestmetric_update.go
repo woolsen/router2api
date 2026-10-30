@@ -41,6 +41,26 @@ func (_u *RequestMetricUpdate) SetNillableRequestID(v *string) *RequestMetricUpd
 	return _u
 }
 
+// SetUpstreamRequestID sets the "upstream_request_id" field.
+func (_u *RequestMetricUpdate) SetUpstreamRequestID(v string) *RequestMetricUpdate {
+	_u.mutation.SetUpstreamRequestID(v)
+	return _u
+}
+
+// SetNillableUpstreamRequestID sets the "upstream_request_id" field if the given value is not nil.
+func (_u *RequestMetricUpdate) SetNillableUpstreamRequestID(v *string) *RequestMetricUpdate {
+	if v != nil {
+		_u.SetUpstreamRequestID(*v)
+	}
+	return _u
+}
+
+// ClearUpstreamRequestID clears the value of the "upstream_request_id" field.
+func (_u *RequestMetricUpdate) ClearUpstreamRequestID() *RequestMetricUpdate {
+	_u.mutation.ClearUpstreamRequestID()
+	return _u
+}
+
 // SetUserID sets the "user_id" field.
 func (_u *RequestMetricUpdate) SetUserID(v int64) *RequestMetricUpdate {
 	_u.mutation.ResetUserID()
@@ -345,6 +365,11 @@ func (_u *RequestMetricUpdate) check() error {
 			return &ValidationError{Name: "request_id", err: fmt.Errorf(`ent: validator failed for field "RequestMetric.request_id": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.UpstreamRequestID(); ok {
+		if err := requestmetric.UpstreamRequestIDValidator(v); err != nil {
+			return &ValidationError{Name: "upstream_request_id", err: fmt.Errorf(`ent: validator failed for field "RequestMetric.upstream_request_id": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Model(); ok {
 		if err := requestmetric.ModelValidator(v); err != nil {
 			return &ValidationError{Name: "model", err: fmt.Errorf(`ent: validator failed for field "RequestMetric.model": %w`, err)}
@@ -367,6 +392,12 @@ func (_u *RequestMetricUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	}
 	if value, ok := _u.mutation.RequestID(); ok {
 		_spec.SetField(requestmetric.FieldRequestID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.UpstreamRequestID(); ok {
+		_spec.SetField(requestmetric.FieldUpstreamRequestID, field.TypeString, value)
+	}
+	if _u.mutation.UpstreamRequestIDCleared() {
+		_spec.ClearField(requestmetric.FieldUpstreamRequestID, field.TypeString)
 	}
 	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(requestmetric.FieldUserID, field.TypeInt64, value)
@@ -474,6 +505,26 @@ func (_u *RequestMetricUpdateOne) SetNillableRequestID(v *string) *RequestMetric
 	if v != nil {
 		_u.SetRequestID(*v)
 	}
+	return _u
+}
+
+// SetUpstreamRequestID sets the "upstream_request_id" field.
+func (_u *RequestMetricUpdateOne) SetUpstreamRequestID(v string) *RequestMetricUpdateOne {
+	_u.mutation.SetUpstreamRequestID(v)
+	return _u
+}
+
+// SetNillableUpstreamRequestID sets the "upstream_request_id" field if the given value is not nil.
+func (_u *RequestMetricUpdateOne) SetNillableUpstreamRequestID(v *string) *RequestMetricUpdateOne {
+	if v != nil {
+		_u.SetUpstreamRequestID(*v)
+	}
+	return _u
+}
+
+// ClearUpstreamRequestID clears the value of the "upstream_request_id" field.
+func (_u *RequestMetricUpdateOne) ClearUpstreamRequestID() *RequestMetricUpdateOne {
+	_u.mutation.ClearUpstreamRequestID()
 	return _u
 }
 
@@ -794,6 +845,11 @@ func (_u *RequestMetricUpdateOne) check() error {
 			return &ValidationError{Name: "request_id", err: fmt.Errorf(`ent: validator failed for field "RequestMetric.request_id": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.UpstreamRequestID(); ok {
+		if err := requestmetric.UpstreamRequestIDValidator(v); err != nil {
+			return &ValidationError{Name: "upstream_request_id", err: fmt.Errorf(`ent: validator failed for field "RequestMetric.upstream_request_id": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Model(); ok {
 		if err := requestmetric.ModelValidator(v); err != nil {
 			return &ValidationError{Name: "model", err: fmt.Errorf(`ent: validator failed for field "RequestMetric.model": %w`, err)}
@@ -833,6 +889,12 @@ func (_u *RequestMetricUpdateOne) sqlSave(ctx context.Context) (_node *RequestMe
 	}
 	if value, ok := _u.mutation.RequestID(); ok {
 		_spec.SetField(requestmetric.FieldRequestID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.UpstreamRequestID(); ok {
+		_spec.SetField(requestmetric.FieldUpstreamRequestID, field.TypeString, value)
+	}
+	if _u.mutation.UpstreamRequestIDCleared() {
+		_spec.ClearField(requestmetric.FieldUpstreamRequestID, field.TypeString)
 	}
 	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(requestmetric.FieldUserID, field.TypeInt64, value)

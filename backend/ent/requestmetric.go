@@ -19,6 +19,8 @@ type RequestMetric struct {
 	ID int64 `json:"id,omitempty"`
 	// RequestID holds the value of the "request_id" field.
 	RequestID string `json:"request_id,omitempty"`
+	// 上游响应声明的请求 ID；NULL 表示未提供
+	UpstreamRequestID *string `json:"upstream_request_id,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID int64 `json:"user_id,omitempty"`
 	// APIKeyID holds the value of the "api_key_id" field.
@@ -59,7 +61,7 @@ func (*RequestMetric) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case requestmetric.FieldID, requestmetric.FieldUserID, requestmetric.FieldAPIKeyID, requestmetric.FieldGroupID, requestmetric.FieldMerchantID, requestmetric.FieldStatusCode, requestmetric.FieldDurationMs, requestmetric.FieldFirstTokenMs, requestmetric.FieldInputTokens, requestmetric.FieldOutputTokens, requestmetric.FieldCacheReadTokens, requestmetric.FieldCacheCreationTokens:
 			values[i] = new(sql.NullInt64)
-		case requestmetric.FieldRequestID, requestmetric.FieldModel:
+		case requestmetric.FieldRequestID, requestmetric.FieldUpstreamRequestID, requestmetric.FieldModel:
 			values[i] = new(sql.NullString)
 		case requestmetric.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -89,6 +91,13 @@ func (_m *RequestMetric) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field request_id", values[i])
 			} else if value.Valid {
 				_m.RequestID = value.String
+			}
+		case requestmetric.FieldUpstreamRequestID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_request_id", values[i])
+			} else if value.Valid {
+				_m.UpstreamRequestID = new(string)
+				*_m.UpstreamRequestID = value.String
 			}
 		case requestmetric.FieldUserID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -213,6 +222,11 @@ func (_m *RequestMetric) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("request_id=")
 	builder.WriteString(_m.RequestID)
+	builder.WriteString(", ")
+	if v := _m.UpstreamRequestID; v != nil {
+		builder.WriteString("upstream_request_id=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UserID))

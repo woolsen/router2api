@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/woolsen/router2api/internal/service"
@@ -26,7 +27,7 @@ type requestMetricRecorder struct {
 	merchantID *int64
 	model      string
 
-	requestID           string
+	upstreamRequestID   string
 	durationMS          int
 	firstTokenMS        int
 	inputTokens         int
@@ -88,7 +89,7 @@ func (r *requestMetricRecorder) ObserveForward(result *service.ForwardResult) {
 		return
 	}
 	if result.RequestID != "" {
-		r.requestID = result.RequestID
+		r.upstreamRequestID = result.RequestID
 	}
 	if result.Duration > 0 {
 		r.durationMS = int(result.Duration.Milliseconds())
@@ -108,7 +109,7 @@ func (r *requestMetricRecorder) ObserveOpenAIForward(result *service.OpenAIForwa
 		return
 	}
 	if result.RequestID != "" {
-		r.requestID = result.RequestID
+		r.upstreamRequestID = result.RequestID
 	}
 	if result.Duration > 0 {
 		r.durationMS = int(result.Duration.Milliseconds())
@@ -132,6 +133,14 @@ func (r *requestMetricRecorder) Finish(c *gin.Context) {
 	if c.Writer != nil && c.Writer.Written() {
 		statusCode = c.Writer.Status()
 	}
+	upstreamError := service.ClassifyUpstreamFailure(statusCode)
+	if statusCode >= http.StatusOK && statusCode < http.StatusBadRequest {
+		// 心跳或首包可能已把 HTTP 固化为 200，真正的失败只能以 SSE 错误帧表达。
+		// 这类就地失败没有非 200 状态码可看，必须结合 ops 的流内错误标记。
+		if streamStatus, ok := requestMetricStreamFailureStatus(c); ok {
+			upstreamError = service.ClassifyUpstreamFailure(streamStatus)
+		}
+	}
 	durationMS := r.durationMS
 	if durationMS <= 0 {
 		durationMS = int(time.Since(r.startedAt).Milliseconds())
@@ -144,19 +153,33 @@ func (r *requestMetricRecorder) Finish(c *gin.Context) {
 		ctx = c.Request.Context()
 	}
 	r.svc.Record(ctx, service.RequestMetric{
-		RequestID:           r.requestID,
 		UserID:              r.userID,
 		APIKeyID:            r.apiKeyID,
 		GroupID:             r.groupID,
 		MerchantID:          r.merchantID,
 		Model:               r.model,
 		StatusCode:          statusCode,
-		UpstreamError:       service.ClassifyUpstreamFailure(statusCode),
+		UpstreamError:       upstreamError,
 		DurationMS:          durationMS,
 		FirstTokenMS:        r.firstTokenMS,
 		InputTokens:         r.inputTokens,
 		OutputTokens:        r.outputTokens,
 		CacheReadTokens:     r.cacheReadTokens,
 		CacheCreationTokens: r.cacheCreationTokens,
+		UpstreamRequestID:   r.upstreamRequestID,
 	})
+}
+
+// requestMetricStreamFailureStatus 返回 200 SSE 流上就地错误的期望状态码。
+//
+// 并发槽等待的心跳或上游首包可能已提交 HTTP 200，失败只能追加 SSE error 帧；
+// handleStreamingAwareErrorWithCode 等路径用 MarkOpsStreamError/MarkOpsStreamFailure
+// 记录这种失败。recorder 取首个（ops 遵循"首个标记即根因"）参与归因判定。
+func requestMetricStreamFailureStatus(c *gin.Context) (int, bool) {
+	for _, streamErr := range service.GetOpsStreamErrors(c) {
+		if streamErr.CountTowardsSLA || streamErr.IntendedStatus >= http.StatusBadRequest {
+			return streamErr.IntendedStatus, true
+		}
+	}
+	return 0, false
 }

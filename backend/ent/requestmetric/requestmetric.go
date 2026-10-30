@@ -15,6 +15,8 @@ const (
 	FieldID = "id"
 	// FieldRequestID holds the string denoting the request_id field in the database.
 	FieldRequestID = "request_id"
+	// FieldUpstreamRequestID holds the string denoting the upstream_request_id field in the database.
+	FieldUpstreamRequestID = "upstream_request_id"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
 	// FieldAPIKeyID holds the string denoting the api_key_id field in the database.
@@ -51,6 +53,7 @@ const (
 var Columns = []string{
 	FieldID,
 	FieldRequestID,
+	FieldUpstreamRequestID,
 	FieldUserID,
 	FieldAPIKeyID,
 	FieldGroupID,
@@ -80,6 +83,8 @@ func ValidColumn(column string) bool {
 var (
 	// RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
 	RequestIDValidator func(string) error
+	// UpstreamRequestIDValidator is a validator for the "upstream_request_id" field. It is called by the builders before save.
+	UpstreamRequestIDValidator func(string) error
 	// DefaultAPIKeyID holds the default value on creation for the "api_key_id" field.
 	DefaultAPIKeyID int64
 	// DefaultModel holds the default value on creation for the "model" field.
@@ -117,6 +122,11 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 // ByRequestID orders the results by the request_id field.
 func ByRequestID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRequestID, opts...).ToFunc()
+}
+
+// ByUpstreamRequestID orders the results by the upstream_request_id field.
+func ByUpstreamRequestID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamRequestID, opts...).ToFunc()
 }
 
 // ByUserID orders the results by the user_id field.

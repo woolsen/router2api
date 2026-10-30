@@ -1861,50 +1861,54 @@ func init() {
 			return nil
 		}
 	}()
+	// requestmetricDescUpstreamRequestID is the schema descriptor for upstream_request_id field.
+	requestmetricDescUpstreamRequestID := requestmetricFields[1].Descriptor()
+	// requestmetric.UpstreamRequestIDValidator is a validator for the "upstream_request_id" field. It is called by the builders before save.
+	requestmetric.UpstreamRequestIDValidator = requestmetricDescUpstreamRequestID.Validators[0].(func(string) error)
 	// requestmetricDescAPIKeyID is the schema descriptor for api_key_id field.
-	requestmetricDescAPIKeyID := requestmetricFields[2].Descriptor()
+	requestmetricDescAPIKeyID := requestmetricFields[3].Descriptor()
 	// requestmetric.DefaultAPIKeyID holds the default value on creation for the api_key_id field.
 	requestmetric.DefaultAPIKeyID = requestmetricDescAPIKeyID.Default.(int64)
 	// requestmetricDescModel is the schema descriptor for model field.
-	requestmetricDescModel := requestmetricFields[5].Descriptor()
+	requestmetricDescModel := requestmetricFields[6].Descriptor()
 	// requestmetric.DefaultModel holds the default value on creation for the model field.
 	requestmetric.DefaultModel = requestmetricDescModel.Default.(string)
 	// requestmetric.ModelValidator is a validator for the "model" field. It is called by the builders before save.
 	requestmetric.ModelValidator = requestmetricDescModel.Validators[0].(func(string) error)
 	// requestmetricDescStatusCode is the schema descriptor for status_code field.
-	requestmetricDescStatusCode := requestmetricFields[6].Descriptor()
+	requestmetricDescStatusCode := requestmetricFields[7].Descriptor()
 	// requestmetric.DefaultStatusCode holds the default value on creation for the status_code field.
 	requestmetric.DefaultStatusCode = requestmetricDescStatusCode.Default.(int)
 	// requestmetricDescUpstreamError is the schema descriptor for upstream_error field.
-	requestmetricDescUpstreamError := requestmetricFields[7].Descriptor()
+	requestmetricDescUpstreamError := requestmetricFields[8].Descriptor()
 	// requestmetric.DefaultUpstreamError holds the default value on creation for the upstream_error field.
 	requestmetric.DefaultUpstreamError = requestmetricDescUpstreamError.Default.(bool)
 	// requestmetricDescDurationMs is the schema descriptor for duration_ms field.
-	requestmetricDescDurationMs := requestmetricFields[8].Descriptor()
+	requestmetricDescDurationMs := requestmetricFields[9].Descriptor()
 	// requestmetric.DefaultDurationMs holds the default value on creation for the duration_ms field.
 	requestmetric.DefaultDurationMs = requestmetricDescDurationMs.Default.(int)
 	// requestmetricDescFirstTokenMs is the schema descriptor for first_token_ms field.
-	requestmetricDescFirstTokenMs := requestmetricFields[9].Descriptor()
+	requestmetricDescFirstTokenMs := requestmetricFields[10].Descriptor()
 	// requestmetric.DefaultFirstTokenMs holds the default value on creation for the first_token_ms field.
 	requestmetric.DefaultFirstTokenMs = requestmetricDescFirstTokenMs.Default.(int)
 	// requestmetricDescInputTokens is the schema descriptor for input_tokens field.
-	requestmetricDescInputTokens := requestmetricFields[10].Descriptor()
+	requestmetricDescInputTokens := requestmetricFields[11].Descriptor()
 	// requestmetric.DefaultInputTokens holds the default value on creation for the input_tokens field.
 	requestmetric.DefaultInputTokens = requestmetricDescInputTokens.Default.(int)
 	// requestmetricDescOutputTokens is the schema descriptor for output_tokens field.
-	requestmetricDescOutputTokens := requestmetricFields[11].Descriptor()
+	requestmetricDescOutputTokens := requestmetricFields[12].Descriptor()
 	// requestmetric.DefaultOutputTokens holds the default value on creation for the output_tokens field.
 	requestmetric.DefaultOutputTokens = requestmetricDescOutputTokens.Default.(int)
 	// requestmetricDescCacheReadTokens is the schema descriptor for cache_read_tokens field.
-	requestmetricDescCacheReadTokens := requestmetricFields[12].Descriptor()
+	requestmetricDescCacheReadTokens := requestmetricFields[13].Descriptor()
 	// requestmetric.DefaultCacheReadTokens holds the default value on creation for the cache_read_tokens field.
 	requestmetric.DefaultCacheReadTokens = requestmetricDescCacheReadTokens.Default.(int)
 	// requestmetricDescCacheCreationTokens is the schema descriptor for cache_creation_tokens field.
-	requestmetricDescCacheCreationTokens := requestmetricFields[13].Descriptor()
+	requestmetricDescCacheCreationTokens := requestmetricFields[14].Descriptor()
 	// requestmetric.DefaultCacheCreationTokens holds the default value on creation for the cache_creation_tokens field.
 	requestmetric.DefaultCacheCreationTokens = requestmetricDescCacheCreationTokens.Default.(int)
 	// requestmetricDescCreatedAt is the schema descriptor for created_at field.
-	requestmetricDescCreatedAt := requestmetricFields[14].Descriptor()
+	requestmetricDescCreatedAt := requestmetricFields[15].Descriptor()
 	// requestmetric.DefaultCreatedAt holds the default value on creation for the created_at field.
 	requestmetric.DefaultCreatedAt = requestmetricDescCreatedAt.Default.(func() time.Time)
 	securitysecretMixin := schema.SecuritySecret{}.Mixin()

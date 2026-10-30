@@ -1556,6 +1556,7 @@ var (
 	RequestMetricsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
 		{Name: "request_id", Type: field.TypeString, Size: 64},
+		{Name: "upstream_request_id", Type: field.TypeString, Nullable: true, Size: 128},
 		{Name: "user_id", Type: field.TypeInt64},
 		{Name: "api_key_id", Type: field.TypeInt64, Default: 0},
 		{Name: "group_id", Type: field.TypeInt64},
@@ -1580,10 +1581,10 @@ var (
 			{
 				Name:    "requestmetric_group_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{RequestMetricsColumns[4], RequestMetricsColumns[15]},
+				Columns: []*schema.Column{RequestMetricsColumns[5], RequestMetricsColumns[16]},
 				Annotation: &entsql.IndexAnnotation{
 					DescColumns: map[string]bool{
-						RequestMetricsColumns[15].Name: true,
+						RequestMetricsColumns[16].Name: true,
 					},
 				},
 			},

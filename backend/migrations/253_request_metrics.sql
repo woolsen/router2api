@@ -5,6 +5,7 @@
 CREATE TABLE IF NOT EXISTS request_metrics (
     id BIGSERIAL PRIMARY KEY,
     request_id VARCHAR(64) NOT NULL,
+    upstream_request_id VARCHAR(128),
     user_id BIGINT NOT NULL,
     api_key_id BIGINT NOT NULL DEFAULT 0,
     group_id BIGINT NOT NULL,
@@ -28,3 +29,4 @@ COMMENT ON TABLE request_metrics IS '每次已鉴权网关请求的结果快照�
 COMMENT ON COLUMN request_metrics.status_code IS '最终写出的 HTTP 状态码；0 表示超时/未写出响应';
 COMMENT ON COLUMN request_metrics.upstream_error IS '是否归因于上游：5xx 或 status_code=0；4xx 为用户错误';
 COMMENT ON COLUMN request_metrics.merchant_id IS '分组商户快照；NULL 表示平台自营';
+COMMENT ON COLUMN request_metrics.upstream_request_id IS '上游响应声明的请求 ID；NULL 表示未提供';

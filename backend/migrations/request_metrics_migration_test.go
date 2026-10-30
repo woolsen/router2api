@@ -15,6 +15,7 @@ func TestMigration253CreatesRequestMetrics(t *testing.T) {
 	sql := string(content)
 	require.Contains(t, sql, "CREATE TABLE IF NOT EXISTS request_metrics")
 	require.Contains(t, sql, "request_id VARCHAR(64) NOT NULL")
+	require.Contains(t, sql, "upstream_request_id VARCHAR(128)")
 	require.Contains(t, sql, "user_id BIGINT NOT NULL")
 	require.Contains(t, sql, "api_key_id BIGINT NOT NULL DEFAULT 0")
 	require.Contains(t, sql, "group_id BIGINT NOT NULL")

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/woolsen/router2api/internal/pkg/ctxkey"
+	middleware2 "github.com/woolsen/router2api/internal/server/middleware"
 	"github.com/woolsen/router2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -69,6 +71,7 @@ func TestRequestMetricRecorderUsesWrittenStatus(t *testing.T) {
 		name         string
 		status       int
 		write        bool
+		markStream   func(*gin.Context)
 		wantStatus   int
 		wantUpstream bool
 	}{
@@ -76,6 +79,37 @@ func TestRequestMetricRecorderUsesWrittenStatus(t *testing.T) {
 		{name: "user error", status: http.StatusBadRequest, write: true, wantStatus: 400, wantUpstream: false},
 		{name: "upstream failure", status: http.StatusBadGateway, write: true, wantStatus: 502, wantUpstream: true},
 		{name: "timeout before write", status: http.StatusOK, write: false, wantStatus: 0, wantUpstream: true},
+		{
+			name:   "stream failure after 200 ping",
+			status: http.StatusOK,
+			write:  true,
+			markStream: func(c *gin.Context) {
+				service.MarkOpsStreamFailure(c, "upstream_error", "stream_failed", "upstream stream failed", http.StatusBadGateway)
+			},
+			wantStatus:   200,
+			wantUpstream: true,
+		},
+		{
+			name:   "in-band upstream error after 200 data",
+			status: http.StatusOK,
+			write:  true,
+			markStream: func(c *gin.Context) {
+				// handleStreamingAwareErrorWithCode 走 MarkOpsStreamError（非 SLA 版本）。
+				service.MarkOpsStreamError(c, "upstream_error", "upstream stream failed", http.StatusBadGateway)
+			},
+			wantStatus:   200,
+			wantUpstream: true,
+		},
+		{
+			name:   "in-band user error after 200 ping",
+			status: http.StatusOK,
+			write:  true,
+			markStream: func(c *gin.Context) {
+				service.MarkOpsStreamError(c, "invalid_request_error", "bad request", http.StatusBadRequest)
+			},
+			wantStatus:   200,
+			wantUpstream: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -91,6 +125,9 @@ func TestRequestMetricRecorderUsesWrittenStatus(t *testing.T) {
 			if tt.write {
 				c.Status(tt.status)
 				c.Writer.WriteHeaderNow()
+			}
+			if tt.markStream != nil {
+				tt.markStream(c)
 			}
 			recorder.Finish(c)
 
@@ -124,6 +161,7 @@ func TestRequestMetricRecorderObservesForwardResult(t *testing.T) {
 	svc.Start()
 
 	c, _ := newRecorderTestContext()
+	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), ctxkey.ClientRequestID, "client-abc"))
 	recorder := newRequestMetricRecorder()
 	recorder.Configure(svc, newRecorderTestAPIKey(), 11)
 	firstTokenMS := 250
@@ -147,8 +185,11 @@ func TestRequestMetricRecorderObservesForwardResult(t *testing.T) {
 		t.Fatalf("want 1 metric, got %d", len(rows))
 	}
 	row := rows[0]
-	if row.RequestID != "upstream-request-1" {
-		t.Fatalf("request_id=%q", row.RequestID)
+	if row.RequestID != "client:client-abc" {
+		t.Fatalf("request_id=%q, want usage_logs-compatible client:client-abc", row.RequestID)
+	}
+	if row.UpstreamRequestID != "upstream-request-1" {
+		t.Fatalf("upstream_request_id=%q", row.UpstreamRequestID)
 	}
 	if row.DurationMS != 1500 || row.FirstTokenMS != 250 {
 		t.Fatalf("latency snapshot wrong: %+v", row)
@@ -194,4 +235,32 @@ func TestRequestMetricRecorderWithoutServiceIsNoop(t *testing.T) {
 	c.Status(http.StatusInternalServerError)
 	c.Writer.WriteHeaderNow()
 	recorder.Finish(c) // 不得 panic
+}
+
+// TestGatewayResponsesRecordsRequestMetric 覆盖 Anthropic 平台分组 /v1/responses
+// 入口：空请求体在鉴权后立即返回 400，但 recorder 仍应落一行可归因指标。
+func TestGatewayResponsesRecordsRequestMetric(t *testing.T) {
+	repo := &recorderTestMetricRepo{}
+	svc := service.NewMetricsService(repo, service.MetricsOptions{Buffer: 4, FlushInterval: time.Millisecond})
+	svc.Start()
+
+	h := &GatewayHandler{metricsService: svc}
+	c, _ := newRecorderTestContext()
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(string(middleware2.ContextKeyAPIKey), newRecorderTestAPIKey())
+	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 11})
+
+	h.Responses(c)
+
+	rows := flushRecorderMetrics(t, svc, repo)
+	if len(rows) != 1 {
+		t.Fatalf("want 1 metric from GatewayHandler.Responses, got %d", len(rows))
+	}
+	row := rows[0]
+	if row.StatusCode != http.StatusBadRequest || row.UpstreamError {
+		t.Fatalf("unexpected outcome: %+v", row)
+	}
+	if row.UserID != 11 || row.APIKeyID != 5 || row.GroupID != 7 || row.MerchantID == nil || *row.MerchantID != 99 {
+		t.Fatalf("ownership snapshot wrong: %+v", row)
+	}
 }

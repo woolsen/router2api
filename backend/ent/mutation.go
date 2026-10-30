@@ -41075,6 +41075,7 @@ type RequestMetricMutation struct {
 	typ                      string
 	id                       *int64
 	request_id               *string
+	upstream_request_id      *string
 	user_id                  *int64
 	adduser_id               *int64
 	api_key_id               *int64
@@ -41238,6 +41239,55 @@ func (m *RequestMetricMutation) OldRequestID(ctx context.Context) (v string, err
 // ResetRequestID resets all changes to the "request_id" field.
 func (m *RequestMetricMutation) ResetRequestID() {
 	m.request_id = nil
+}
+
+// SetUpstreamRequestID sets the "upstream_request_id" field.
+func (m *RequestMetricMutation) SetUpstreamRequestID(s string) {
+	m.upstream_request_id = &s
+}
+
+// UpstreamRequestID returns the value of the "upstream_request_id" field in the mutation.
+func (m *RequestMetricMutation) UpstreamRequestID() (r string, exists bool) {
+	v := m.upstream_request_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamRequestID returns the old "upstream_request_id" field's value of the RequestMetric entity.
+// If the RequestMetric object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMetricMutation) OldUpstreamRequestID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamRequestID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamRequestID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamRequestID: %w", err)
+	}
+	return oldValue.UpstreamRequestID, nil
+}
+
+// ClearUpstreamRequestID clears the value of the "upstream_request_id" field.
+func (m *RequestMetricMutation) ClearUpstreamRequestID() {
+	m.upstream_request_id = nil
+	m.clearedFields[requestmetric.FieldUpstreamRequestID] = struct{}{}
+}
+
+// UpstreamRequestIDCleared returns if the "upstream_request_id" field was cleared in this mutation.
+func (m *RequestMetricMutation) UpstreamRequestIDCleared() bool {
+	_, ok := m.clearedFields[requestmetric.FieldUpstreamRequestID]
+	return ok
+}
+
+// ResetUpstreamRequestID resets all changes to the "upstream_request_id" field.
+func (m *RequestMetricMutation) ResetUpstreamRequestID() {
+	m.upstream_request_id = nil
+	delete(m.clearedFields, requestmetric.FieldUpstreamRequestID)
 }
 
 // SetUserID sets the "user_id" field.
@@ -42012,9 +42062,12 @@ func (m *RequestMetricMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RequestMetricMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
 	if m.request_id != nil {
 		fields = append(fields, requestmetric.FieldRequestID)
+	}
+	if m.upstream_request_id != nil {
+		fields = append(fields, requestmetric.FieldUpstreamRequestID)
 	}
 	if m.user_id != nil {
 		fields = append(fields, requestmetric.FieldUserID)
@@ -42068,6 +42121,8 @@ func (m *RequestMetricMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case requestmetric.FieldRequestID:
 		return m.RequestID()
+	case requestmetric.FieldUpstreamRequestID:
+		return m.UpstreamRequestID()
 	case requestmetric.FieldUserID:
 		return m.UserID()
 	case requestmetric.FieldAPIKeyID:
@@ -42107,6 +42162,8 @@ func (m *RequestMetricMutation) OldField(ctx context.Context, name string) (ent.
 	switch name {
 	case requestmetric.FieldRequestID:
 		return m.OldRequestID(ctx)
+	case requestmetric.FieldUpstreamRequestID:
+		return m.OldUpstreamRequestID(ctx)
 	case requestmetric.FieldUserID:
 		return m.OldUserID(ctx)
 	case requestmetric.FieldAPIKeyID:
@@ -42150,6 +42207,13 @@ func (m *RequestMetricMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetRequestID(v)
+		return nil
+	case requestmetric.FieldUpstreamRequestID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamRequestID(v)
 		return nil
 	case requestmetric.FieldUserID:
 		v, ok := value.(int64)
@@ -42414,6 +42478,9 @@ func (m *RequestMetricMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *RequestMetricMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(requestmetric.FieldUpstreamRequestID) {
+		fields = append(fields, requestmetric.FieldUpstreamRequestID)
+	}
 	if m.FieldCleared(requestmetric.FieldMerchantID) {
 		fields = append(fields, requestmetric.FieldMerchantID)
 	}
@@ -42431,6 +42498,9 @@ func (m *RequestMetricMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *RequestMetricMutation) ClearField(name string) error {
 	switch name {
+	case requestmetric.FieldUpstreamRequestID:
+		m.ClearUpstreamRequestID()
+		return nil
 	case requestmetric.FieldMerchantID:
 		m.ClearMerchantID()
 		return nil
@@ -42444,6 +42514,9 @@ func (m *RequestMetricMutation) ResetField(name string) error {
 	switch name {
 	case requestmetric.FieldRequestID:
 		m.ResetRequestID()
+		return nil
+	case requestmetric.FieldUpstreamRequestID:
+		m.ResetUpstreamRequestID()
 		return nil
 	case requestmetric.FieldUserID:
 		m.ResetUserID()

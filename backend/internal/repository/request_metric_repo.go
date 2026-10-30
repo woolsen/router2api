@@ -42,6 +42,9 @@ func (r *requestMetricRepository) InsertRequestMetrics(ctx context.Context, metr
 			SetCacheReadTokens(metric.CacheReadTokens).
 			SetCacheCreationTokens(metric.CacheCreationTokens).
 			SetCreatedAt(now)
+		if metric.UpstreamRequestID != "" {
+			builder.SetUpstreamRequestID(metric.UpstreamRequestID)
+		}
 		if metric.MerchantID != nil {
 			builder.SetMerchantID(*metric.MerchantID)
 		}
