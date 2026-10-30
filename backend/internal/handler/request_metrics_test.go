@@ -364,3 +364,82 @@ func TestResponsesStreamExhaustedPathsRecordUpstreamError(t *testing.T) {
 		})
 	}
 }
+
+// TestCCSelectionExhaustedAfterProfitVetoAndHeartbeatRecordsUpstreamError 复现
+// 「单账号 + 利润否决 → 重选无候选 → LastFailoverErr=nil 的选号耗尽」链路：
+// 心跳已提交 200 时，该分支必须走流感知出口，不能写 JSON 502 静默丢标记。
+func TestCCSelectionExhaustedAfterProfitVetoAndHeartbeatRecordsUpstreamError(t *testing.T) {
+	fs := NewFailoverState(1, false)
+	if action := fs.RecordProfitVeto(42); action != FailoverContinue {
+		t.Fatalf("first profit veto must continue, got %v", action)
+	}
+	if action := fs.HandleSelectionExhausted(context.Background()); action != FailoverExhausted {
+		t.Fatalf("single excluded account must exhaust selection, got %v", action)
+	}
+	if fs.LastFailoverErr != nil {
+		t.Fatal("test precondition: LastFailoverErr must be nil")
+	}
+
+	repo := &recorderTestMetricRepo{}
+	svc := service.NewMetricsService(repo, service.MetricsOptions{Buffer: 4, FlushInterval: time.Millisecond})
+	svc.Start()
+
+	c, writer := newRecorderTestContext()
+	recorder := newRequestMetricRecorder()
+	recorder.Configure(svc, newRecorderTestAPIKey(), 11)
+	writeSlotWaitHeartbeat(c, ": ping\n\n")
+
+	h := &GatewayHandler{}
+	h.handleCCSelectionExhausted(c, fs, true)
+	recorder.Finish(c)
+
+	rows := flushRecorderMetrics(t, svc, repo)
+	if len(rows) != 1 {
+		t.Fatalf("want 1 metric, got %d", len(rows))
+	}
+	row := rows[0]
+	if row.StatusCode != http.StatusOK {
+		t.Fatalf("status_code=%d, want wire status 200", row.StatusCode)
+	}
+	if !row.UpstreamError {
+		t.Fatal("selection exhausted after 200 heartbeat must be upstream_error")
+	}
+	body := writer.Body.String()
+	if strings.Count(body, `"error"`) != 1 {
+		t.Fatalf("want exactly one error frame, body=%q", body)
+	}
+	if strings.Count(body, "data: [DONE]") != 1 {
+		t.Fatalf("want exactly one [DONE] terminal frame, body=%q", body)
+	}
+}
+
+func TestCCFailoverExhaustedDoesNotDuplicateCommittedStreamError(t *testing.T) {
+	repo := &recorderTestMetricRepo{}
+	svc := service.NewMetricsService(repo, service.MetricsOptions{Buffer: 4, FlushInterval: time.Millisecond})
+	svc.Start()
+
+	c, writer := newRecorderTestContext()
+	recorder := newRequestMetricRecorder()
+	recorder.Configure(svc, newRecorderTestAPIKey(), 11)
+	writeSlotWaitHeartbeat(c, ": ping\n\n")
+
+	// 上游/服务层已经写出终止错误帧并标记 committed + 流内错误。
+	service.MarkOpsStreamError(c, "upstream_error", "stream_read_error", http.StatusBadGateway)
+	service.MarkResponseCommitted(c)
+	_, _ = c.Writer.WriteString(`data: {"error":{"type":"upstream_error","message":"stream read error"}}` + "\n\n")
+
+	h := &GatewayHandler{}
+	h.handleCCFailoverExhausted(c, &service.UpstreamFailoverError{StatusCode: http.StatusBadGateway}, true)
+	recorder.Finish(c)
+
+	rows := flushRecorderMetrics(t, svc, repo)
+	if len(rows) != 1 {
+		t.Fatalf("want 1 metric, got %d", len(rows))
+	}
+	if !rows[0].UpstreamError {
+		t.Fatal("committed stream error must stay upstream_error")
+	}
+	if got := strings.Count(writer.Body.String(), `"error"`); got != 1 {
+		t.Fatalf("want exactly one error frame after committed terminal, got %d: %q", got, writer.Body.String())
+	}
+}

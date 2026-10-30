@@ -478,15 +478,17 @@ func (s *AntigravityGatewayService) handleAntigravityCompatReadError(
 	maxLineSize int,
 	prefix string,
 ) (*antigravityStreamResult, error) {
+	// 客户端取消/断开不是上游失败：必须在写终止错误和打 502 标记之前识别，
+	// 否则首包前用户取消会被记为上游失败。
+	if disconnect, handled := handleStreamReadError(err, session.writer.Disconnected(), prefix); handled {
+		return session.collectResult(disconnect), nil
+	}
 	if !session.hasMeaningfulData() && !session.writer.Disconnected() {
 		if session.preContentKeepaliveSent {
 			writeAntigravityCompatStreamError(c, session.adapter, session.writer, "stream_read_error")
 			return session.collectResult(false), fmt.Errorf("stream read error: %w", err)
 		}
 		return nil, antigravityCompatEmptyStreamError()
-	}
-	if disconnect, handled := handleStreamReadError(err, session.writer.Disconnected(), prefix); handled {
-		return session.collectResult(disconnect), nil
 	}
 	if errors.Is(err, bufio.ErrTooLong) {
 		logger.LegacyPrintf("service.antigravity_gateway", "SSE line too long (%s): max_size=%d error=%v", prefix, maxLineSize, err)

@@ -227,11 +227,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				failoverClientGone(c)
 				return
 			default:
-				if fs.LastFailoverErr != nil {
-					h.handleCCFailoverExhausted(c, fs.LastFailoverErr, streamStarted)
-				} else {
-					h.chatCompletionsErrorResponse(c, http.StatusBadGateway, "server_error", "All available accounts exhausted")
-				}
+				h.handleCCSelectionExhausted(c, fs, streamStarted)
 				return
 			}
 		}
@@ -422,6 +418,17 @@ func (h *GatewayHandler) chatCompletionsErrorResponse(c *gin.Context, status int
 	})
 }
 
+// handleCCSelectionExhausted 处理选号耗尽：有 lastErr 时按上游错误细化文案，
+// 否则按「无可用账号」返回。两条路径都必须经过已提交 200 的流感知出口，
+// 避免心跳后失败被写成 JSON 或静默 EOF。
+func (h *GatewayHandler) handleCCSelectionExhausted(c *gin.Context, fs *FailoverState, streamStarted bool) {
+	if fs.LastFailoverErr != nil {
+		h.handleCCFailoverExhausted(c, fs.LastFailoverErr, streamStarted)
+		return
+	}
+	h.handleCCFailoverExhausted(c, nil, streamStarted)
+}
+
 // handleCCFailoverExhausted writes a failover-exhausted error in CC format.
 func (h *GatewayHandler) handleCCFailoverExhausted(c *gin.Context, lastErr *service.UpstreamFailoverError, streamStarted bool) {
 	if lastErr != nil {
@@ -429,6 +436,14 @@ func (h *GatewayHandler) handleCCFailoverExhausted(c *gin.Context, lastErr *serv
 	}
 	status, errType, message := ccFailoverExhaustedDetails(c, lastErr)
 	if streamStarted && c.Writer != nil && c.Writer.Written() {
+		if service.IsResponseCommitted(c) {
+			// 上游/服务层已经写过终止帧并可能已记录流内错误：只补齐标记，
+			// 不再追加第二帧通用错误。
+			if len(service.GetOpsStreamErrors(c)) == 0 {
+				service.MarkOpsStreamError(c, errType, message, status)
+			}
+			return
+		}
 		// 心跳/首包已提交 200，无法再改状态码；必须补 SSE 错误帧并留下流内失败标记，
 		// 否则客户端只会看到静默 EOF，指标也会误记成功。
 		writeChatCompletionsStreamError(c, status, errType, message)

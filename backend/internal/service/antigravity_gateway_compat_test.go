@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/woolsen/router2api/internal/config"
-	"github.com/woolsen/router2api/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"github.com/woolsen/router2api/internal/config"
+	"github.com/woolsen/router2api/internal/pkg/apicompat"
 )
 
 type antigravityCompatTokenCache struct {
@@ -1030,6 +1030,41 @@ func TestAntigravityCompatEmptyAfterKeepaliveReportsStreamError(t *testing.T) {
 			require.NotNil(t, result)
 			require.True(t, IsResponseCommitted(c))
 			require.Contains(t, recorder.Body.String(), tt.want)
+		})
+	}
+}
+
+// TestAntigravityCompatClientCancelBeforeContentDoesNotMarkUpstreamFailure 钉死
+// 首包前用户取消/超时：不得写流错误，也不得打上游失败标记（请求指标会据此误判）。
+func TestAntigravityCompatClientCancelBeforeContentDoesNotMarkUpstreamFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"canceled", context.Canceled},
+		{"deadline", context.DeadlineExceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := newAntigravityCompatService(config.GatewayConfig{MaxLineSize: defaultMaxLineSize}, nil)
+			c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/responses", nil)
+			writer := newAntigravityClientWriter(c.Writer, c.Writer.(http.Flusher), "test")
+			session := newAntigravityCompatStreamSession(
+				"gemini-3.1-pro",
+				time.Now(),
+				newAntigravityResponsesStreamAdapter("gemini-3.1-pro"),
+				writer,
+			)
+			session.preContentKeepaliveSent = true
+			if _, ok := c.Writer.(http.Flusher); !ok {
+				t.Fatal("test recorder must support flushing")
+			}
+
+			_, err := svc.handleAntigravityCompatReadError(c, session, tc.err, defaultMaxLineSize, "test")
+			require.NoError(t, err)
+			require.Empty(t, recorder.Body.String(), "client cancel must not write a stream error")
+			require.False(t, IsResponseCommitted(c))
+			require.Empty(t, GetOpsStreamErrors(c), "client cancel must not mark an upstream failure")
 		})
 	}
 }
