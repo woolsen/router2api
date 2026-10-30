@@ -225,6 +225,7 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	marketGroupsHandler *MarketGroupsHandler,
 	merchantConsoleHandler *MerchantConsoleHandler,
+	merchantApplyHandler *MerchantApplyHandler,
 	merchantWithdrawalHandler *MerchantWithdrawalHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
@@ -255,6 +256,7 @@ func ProvideHandlers(
 		Market:             marketGroupsHandler,
 		MerchantConsole:    merchantConsoleHandler,
 		MerchantWithdrawal: merchantWithdrawalHandler,
+		MerchantApply:      merchantApplyHandler,
 		AsyncImage:         asyncImageHandler,
 		BatchImage:         batchImageHandler,
 	}
@@ -283,6 +285,7 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	ProvideMarketGroupsHandler,
 	NewMerchantConsoleHandler,
+	NewMerchantApplyHandler,
 	NewMerchantWithdrawalHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,

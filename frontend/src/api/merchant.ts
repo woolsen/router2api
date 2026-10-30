@@ -108,11 +108,25 @@ export async function requestMerchantWithdrawal(amount: number): Promise<Merchan
   return data
 }
 
+/** 探测商户上游：https/公网、模型列表、usage、流式四项，任一失败返回固定错误码。 */
+export async function probeMerchantUpstream(input: MerchantProbeInput): Promise<MerchantProbeResult> {
+  const { data } = await apiClient.post<MerchantProbeResult>('/merchant/apply/probe', input)
+  return data
+}
+
+/** 提交入驻：服务端重新探测后建商户/分组/账号并把当前用户升级为 merchant。 */
+export async function submitMerchantApply(input: MerchantApplyInput): Promise<MerchantApplyResult> {
+  const { data } = await apiClient.post<MerchantApplyResult>('/merchant/apply', input)
+  return data
+}
+
 export const merchantAPI = {
   getMerchantDashboard,
   getMerchantDailyUsage,
   getMerchantWithdrawals,
   requestMerchantWithdrawal,
+  probeMerchantUpstream,
+  submitMerchantApply,
 }
 
 export default merchantAPI
