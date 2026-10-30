@@ -27,6 +27,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_group_metric_hourly_group_hour
 CREATE INDEX IF NOT EXISTS idx_group_metric_hourly_hour
     ON group_metric_hourly(hour);
 
+-- 小时聚合按 created_at 全局范围扫描；Task 1 的 (group_id, created_at) 复合索引
+-- 前缀是 group_id，无法服务全分组的整点聚合。
+CREATE INDEX IF NOT EXISTS idx_request_metrics_created
+    ON request_metrics(created_at);
+
 COMMENT ON TABLE group_metric_hourly IS '分组按整点小时聚合的请求指标（可重算）';
 COMMENT ON COLUMN group_metric_hourly.hour IS '聚合桶起点（UTC 整点）';
 COMMENT ON COLUMN group_metric_hourly.requests IS '该小时请求总数（含 4xx 用户错误）';

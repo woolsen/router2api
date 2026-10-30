@@ -81,6 +81,8 @@ func (RequestMetric) Indexes() []ent.Index {
 		// 分组维度的成功率 / TTFT 聚合按时间倒序扫描。
 		index.Fields("group_id", "created_at").
 			Annotations(entsql.DescColumns("created_at")),
+		// 小时聚合按全局时间范围扫描，复合索引的 group_id 前缀帮不上忙。
+		index.Fields("created_at"),
 		index.Fields("request_id"),
 	}
 }

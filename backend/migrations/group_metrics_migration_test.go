@@ -30,4 +30,6 @@ func TestMigration254CreatesGroupMetricHourly(t *testing.T) {
 	require.Contains(t, sql, "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()")
 	require.Contains(t, sql, "CREATE UNIQUE INDEX IF NOT EXISTS idx_group_metric_hourly_group_hour")
 	require.Contains(t, sql, "ON group_metric_hourly(group_id, hour)")
+	require.Contains(t, sql, "CREATE INDEX IF NOT EXISTS idx_request_metrics_created")
+	require.Contains(t, sql, "ON request_metrics(created_at)")
 }

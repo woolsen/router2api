@@ -1625,6 +1625,11 @@ var (
 				},
 			},
 			{
+				Name:    "requestmetric_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{RequestMetricsColumns[16]},
+			},
+			{
 				Name:    "requestmetric_request_id",
 				Unique:  false,
 				Columns: []*schema.Column{RequestMetricsColumns[1]},
