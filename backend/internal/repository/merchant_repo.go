@@ -32,6 +32,7 @@ func (r *merchantRepository) Create(ctx context.Context, m *service.Merchant) er
 		return err
 	}
 	m.ID = created.ID
+	m.CreatedAt = created.CreatedAt
 	return nil
 }
 
@@ -70,6 +71,12 @@ func (r *merchantRepository) List(
 	return merchantEntitiesToService(items), paginationResultFromTotal(int64(total), params), nil
 }
 
+func (r *merchantRepository) Delete(ctx context.Context, id int64) error {
+	client := clientFromContext(ctx, r.client)
+	err := client.Merchant.DeleteOneID(id).Exec(ctx)
+	return translatePersistenceError(err, service.ErrMerchantNotFound, nil)
+}
+
 func (r *merchantRepository) UpdateCommissionRate(ctx context.Context, id int64, rate float64) error {
 	client := clientFromContext(ctx, r.client)
 	_, err := client.Merchant.UpdateOneID(id).
@@ -92,6 +99,7 @@ func merchantEntityToService(m *dbent.Merchant) *service.Merchant {
 		Contact:        contact,
 		Status:         m.Status,
 		CommissionRate: m.CommissionRate,
+		CreatedAt:      m.CreatedAt,
 	}
 }
 

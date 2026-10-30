@@ -173,9 +173,11 @@ func ProvideMarketGroupsHandler(
 	plaza *service.ModelPlazaService,
 	apiKeyService *service.APIKeyService,
 	metricsAggregator *service.MetricsAggregator,
+	merchantService *service.MerchantService,
 ) *MarketGroupsHandler {
 	h := NewMarketGroupsHandler(plaza, apiKeyService)
 	h.SetMetricsSource(metricsAggregator)
+	h.SetMerchantSource(merchantService)
 	return h
 }
 

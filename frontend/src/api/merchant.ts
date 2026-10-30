@@ -31,6 +31,38 @@ export interface MerchantUsageTrend {
   items: MerchantDailyUsagePoint[]
 }
 
+/** 商户可接入的上游协议；探测与网关走同一套凭据。 */
+export type MerchantApplyPlatform = 'openai' | 'anthropic'
+
+/** 探测请求：只提交上游地址与 key，不落库。 */
+export interface MerchantProbeInput {
+  base_url: string
+  api_key: string
+  platform: MerchantApplyPlatform
+}
+
+/** 四项探测通过后的结果；models 可直接用于建组上架。 */
+export interface MerchantProbeResult {
+  models: string[]
+  supports_stream: boolean
+  returns_usage: boolean
+  latency_ms: number
+}
+
+/** 入驻申请：探测结果由前端回传选中的模型与分组倍率。 */
+export interface MerchantApplyInput extends MerchantProbeInput {
+  merchant_name: string
+  rate_multiplier: number
+  models: string[]
+}
+
+export interface MerchantApplyResult {
+  id: number
+  name: string
+  status: string
+  commission_rate: number
+}
+
 export async function getMerchantDashboard(): Promise<MerchantDashboard> {
   const { data } = await apiClient.get<MerchantDashboard>('/merchant/me')
   return data

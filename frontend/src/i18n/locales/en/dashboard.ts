@@ -658,6 +658,7 @@ export default {
     empty: 'No merchant groups yet',
     emptyDesc: 'Groups will appear here once merchants list them',
     rate: 'Rate',
+    newMerchant: 'New merchant',
     peakRate: 'Peak hours {start}–{end} ×{multiplier}',
     peakActive: '(active now)',
     rateEstimate: 'Estimated — final charge follows actual billing',

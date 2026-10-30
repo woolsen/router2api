@@ -159,6 +159,22 @@ func (r *fakeOnboardingAccountRepo) CreateWithAccountGroups(_ context.Context, a
 	return nil
 }
 
+func (r *fakeOnboardingAccountRepo) Delete(_ context.Context, accountID int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.accounts, accountID)
+	for groupID, bindings := range r.groups {
+		kept := bindings[:0]
+		for _, binding := range bindings {
+			if binding.AccountID != accountID {
+				kept = append(kept, binding)
+			}
+		}
+		r.groups[groupID] = kept
+	}
+	return nil
+}
+
 func (r *fakeOnboardingAccountRepo) Update(_ context.Context, account *Account) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

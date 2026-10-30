@@ -328,7 +328,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	modelPlazaHandler := handler.NewModelPlazaHandler(modelPlazaService, apiKeyService, settingService)
 	groupMetricRepository := repository.NewGroupMetricRepository(db)
 	metricsAggregator := service.ProvideMetricsAggregator(groupMetricRepository)
-	marketGroupsHandler := handler.ProvideMarketGroupsHandler(modelPlazaService, apiKeyService, metricsAggregator)
+	marketGroupsHandler := handler.ProvideMarketGroupsHandler(modelPlazaService, apiKeyService, metricsAggregator, merchantService)
 	merchantConsoleRepository := repository.NewMerchantConsoleRepository(db)
 	merchantConsoleService := service.NewMerchantConsoleService(merchantService, merchantConsoleRepository)
 	merchantConsoleHandler := handler.NewMerchantConsoleHandler(merchantConsoleService)

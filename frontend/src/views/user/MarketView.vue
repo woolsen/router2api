@@ -51,6 +51,13 @@
                 <PlatformIcon :platform="group.platform" size="xs" />
                 {{ platformLabel(group.platform) }}
               </span>
+              <span
+                v-if="group.new_merchant"
+                data-test="market-new-merchant"
+                class="ml-1 mt-1 inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-300"
+              >
+                {{ t('market.newMerchant') }}
+              </span>
             </div>
             <div class="shrink-0 text-right">
               <div class="text-[11px] text-gray-500 dark:text-dark-400">

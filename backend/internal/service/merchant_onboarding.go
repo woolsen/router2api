@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"unicode/utf8"
 
@@ -52,6 +53,8 @@ type MerchantOnboardingAccountRepository interface {
 	ListGroupAccounts(ctx context.Context, groupID int64) ([]Account, error)
 	CreateWithAccountGroups(ctx context.Context, account *Account, groups []AccountGroup) error
 	Update(ctx context.Context, account *Account) error
+	// Delete 移除失败申请中已创建的账号；用于回滚补偿。
+	Delete(ctx context.Context, accountID int64) error
 	// WithGroupOnboardingLock 以 groupID 为键持有事务级锁，串行化“认领归属 + 查重 + 创建”，
 	// 避免两个商户并发接入同一无主分组。锁键只含 groupID：按商户分键会给每个商户各一把锁，
 	// 无法互斥。
@@ -260,6 +263,28 @@ func (s *MerchantOnboardingService) ConfigureGroupModels(
 		return fmt.Errorf("merchant onboarding channel service is not configured")
 	}
 	return s.channels.EnsureGroupModels(ctx, groupID, platform, models)
+}
+
+// RollbackGroup 删除失败申请为该分组创建的渠道与上游账号，供调用方继续删除
+// 分组和商户。每一步独立执行，尽量清理干净；返回的错误只用于日志。
+func (s *MerchantOnboardingService) RollbackGroup(ctx context.Context, groupID, accountID int64) error {
+	var errs []error
+	if s.channels != nil && s.channels.repo != nil && groupID > 0 {
+		channelID, err := s.channels.repo.GetChannelIDByGroupID(ctx, groupID)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("find channel for group %d: %w", groupID, err))
+		} else if channelID > 0 {
+			if err := s.channels.Delete(ctx, channelID); err != nil && !errors.Is(err, ErrChannelNotFound) {
+				errs = append(errs, fmt.Errorf("delete channel %d: %w", channelID, err))
+			}
+		}
+	}
+	if s.accountRepo != nil && accountID > 0 {
+		if err := s.accountRepo.Delete(ctx, accountID); err != nil {
+			errs = append(errs, fmt.Errorf("delete account %d: %w", accountID, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func merchantAccountName(merchantName string) string {

@@ -662,6 +662,7 @@ export default {
     empty: '暂无商户分组',
     emptyDesc: '商户上架分组后会显示在这里',
     rate: '倍率',
+    newMerchant: '新商户',
     peakRate: '高峰 {start}–{end} ×{multiplier}',
     peakActive: '（当前生效）',
     rateEstimate: '估算值，以实际计费为准',
