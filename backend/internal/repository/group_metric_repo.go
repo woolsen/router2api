@@ -80,18 +80,29 @@ FROM request_metrics
 WHERE group_id = ANY($1) AND created_at >= $2
 GROUP BY group_id`
 
+// groupHealthStatementTimeout 让健康查询在热表上超时即失败，而不是拖住货架请求。
+// SET LOCAL 必须在事务内执行，事务同时保证超时设置不会泄漏到连接池里的下一条查询。
+const groupHealthStatementTimeout = "3s"
+
+const groupMetricLatestHourQuery = `SELECT MAX(hour) FROM group_metric_hourly`
+
 type groupMetricRepository struct {
 	sql sqlExecutor
+	db  *sql.DB
 }
 
 // NewGroupMetricRepository 创建分组小时指标仓库。
 func NewGroupMetricRepository(sqlDB *sql.DB) service.GroupMetricRepository {
-	return &groupMetricRepository{sql: sqlDB}
+	return &groupMetricRepository{sql: sqlDB, db: sqlDB}
 }
 
 // newGroupMetricRepositoryWithSQL 用于只依赖 sqlExecutor 的单元测试。
 func newGroupMetricRepositoryWithSQL(sqlq sqlExecutor) *groupMetricRepository {
-	return &groupMetricRepository{sql: sqlq}
+	repo := &groupMetricRepository{sql: sqlq}
+	if db, ok := sqlq.(*sql.DB); ok {
+		repo.db = db
+	}
+	return repo
 }
 
 func (r *groupMetricRepository) AggregateRequestMetrics(
@@ -227,7 +238,37 @@ func (r *groupMetricRepository) GroupHealthSamples(
 		return out, nil
 	}
 
-	rows, err := r.sql.QueryContext(ctx, groupHealthSamplesQuery, pq.Array(groupIDs), since, recentSince)
+	if r.db == nil {
+		return queryGroupHealthSamples(ctx, r.sql, groupIDs, since, recentSince)
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, "SET LOCAL statement_timeout = '"+groupHealthStatementTimeout+"'"); err != nil {
+		return nil, err
+	}
+	out, err = queryGroupHealthSamples(ctx, tx, groupIDs, since, recentSince)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func queryGroupHealthSamples(
+	ctx context.Context,
+	query sqlExecutor,
+	groupIDs []int64,
+	since, recentSince time.Time,
+) (map[int64]service.GroupHealthSample, error) {
+	out := make(map[int64]service.GroupHealthSample, len(groupIDs))
+	rows, err := query.QueryContext(ctx, groupHealthSamplesQuery, pq.Array(groupIDs), since, recentSince)
 	if err != nil {
 		return nil, err
 	}
@@ -260,4 +301,28 @@ func (r *groupMetricRepository) GroupHealthSamples(
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *groupMetricRepository) LatestGroupMetricHour(ctx context.Context) (*time.Time, error) {
+	rows, err := r.sql.QueryContext(ctx, groupMetricLatestHourQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+	var hour sql.NullTime
+	if err := rows.Scan(&hour); err != nil {
+		return nil, err
+	}
+	if !hour.Valid {
+		return nil, nil
+	}
+	utc := hour.Time.UTC().Truncate(time.Hour)
+	return &utc, nil
 }

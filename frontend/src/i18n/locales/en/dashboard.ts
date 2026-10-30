@@ -667,9 +667,9 @@ export default {
     insufficient: 'Not enough data',
     groupUnavailable: 'This group is not available for your account',
     metrics: {
-      requests: 'Requests',
-      successRate: 'Success rate',
-      latency: 'Latency'
+      requests24h: 'Requests (24h)',
+      successRate24h: 'Success rate (24h)',
+      ttftP951h: 'TTFT P95 (1h)'
     }
   },
 

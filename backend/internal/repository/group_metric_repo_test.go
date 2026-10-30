@@ -131,6 +131,34 @@ func TestGroupMetricRepositoryListGroupMetrics(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestGroupMetricRepositoryLatestGroupMetricHour(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := newGroupMetricRepositoryWithSQL(db)
+
+	hour := time.Date(2026, 10, 29, 10, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(`SELECT MAX\(hour\) FROM group_metric_hourly`).
+		WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(hour))
+
+	got, err := repo.LatestGroupMetricHour(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.True(t, got.Equal(hour))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGroupMetricRepositoryLatestGroupMetricHourEmpty(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := newGroupMetricRepositoryWithSQL(db)
+
+	mock.ExpectQuery(`SELECT MAX\(hour\) FROM group_metric_hourly`).
+		WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(nil))
+
+	got, err := repo.LatestGroupMetricHour(context.Background())
+	require.NoError(t, err)
+	require.Nil(t, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestGroupMetricRepositoryGroupHealthSamples(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := newGroupMetricRepositoryWithSQL(db)
@@ -138,6 +166,10 @@ func TestGroupMetricRepositoryGroupHealthSamples(t *testing.T) {
 	since := time.Date(2026, 10, 29, 11, 0, 0, 0, time.UTC)
 	recentSince := time.Date(2026, 10, 29, 11, 45, 0, 0, time.UTC)
 
+	// 健康查询在事务内先设置 statement_timeout，避免热表查询拖住货架请求；
+	// SET LOCAL 也保证超时设置不会泄漏到连接池。
+	mock.ExpectBegin()
+	mock.ExpectExec(`SET LOCAL statement_timeout = '3s'`).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(`(?s)SELECT\s+group_id,\s+`+
 		`COUNT\(\*\) FILTER \(WHERE created_at >= \$2\) AS requests,\s+`+
 		`COUNT\(\*\) FILTER \(WHERE created_at >= \$2 AND upstream_error\) AS upstream_failures,.*`+
@@ -150,6 +182,7 @@ func TestGroupMetricRepositoryGroupHealthSamples(t *testing.T) {
 		}).
 			AddRow(int64(9), int64(25), int64(4), 1200.0, int64(6), int64(2)).
 			AddRow(int64(10), int64(3), int64(3), 0.0, int64(3), int64(0)))
+	mock.ExpectCommit()
 
 	samples, err := repo.GroupHealthSamples(context.Background(), []int64{9, 10}, since, recentSince)
 	require.NoError(t, err)

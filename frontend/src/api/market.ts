@@ -9,13 +9,31 @@ import { apiClient } from './client'
 import type { GroupPlatform } from '@/types'
 
 /**
- * 分组指标负载。M1 后端恒返回 null（指标由 M2 的 request_metrics 提供，
- * usage_logs 只记成功请求，拼出来的成功率会误导用户）。
+ * 一档小时窗口的指标，对应后端 marketStatsWindow。
  *
- * 字段名是 M1 的占位约定，M2 落地时以 request_metrics 契约为准；为 null 时
- * 页面不会渲染任何数字，只显示「数据不足」。
+ * 计数、成功率与缓存率由小时原始值精确求和；P50/P95 首包分位数只在窗口
+ * 恰好一个整点桶时有意义，跨桶或没有流式样本时为 null，必须显示「数据不足」，
+ * 不能用 0 冒充观测值。
  */
-export type MarketGroupStats = Record<string, number>
+export interface MarketStatsWindow {
+  requests: number
+  upstream_failures: number
+  success_rate: number
+  request_error_rate: number
+  ttft_samples: number
+  p50_ttft_ms: number | null
+  p95_ttft_ms: number | null
+  cache_hit_rate: number | null
+}
+
+/**
+ * 货架的 1h + 24h 两档指标，对应后端 marketGroupStats。
+ * 24h 样本不足 50 条时整个 stats 为 null；某一档窗口无数据时该档为 null。
+ */
+export interface MarketGroupStats {
+  last_hour: MarketStatsWindow | null
+  last_24h: MarketStatsWindow | null
+}
 
 export interface MarketPeakRate {
   start: string
@@ -40,8 +58,15 @@ export interface MarketGroup {
   peak_rate: MarketPeakRate | null
   models: string[]
   status: string
-  /** M1 恒为 null；客户端必须能处理 null。 */
+  /** 24h 样本不足 50 条时为 null；某一档窗口无数据时该档为 null。 */
   stats: MarketGroupStats | null
+  /** 24h 档的实际请求数；即使 stats 为 null 也如实返回。 */
+  sample_size: number
+  /** 只做展示标记，分组仍可正常使用。 */
+  degraded: boolean
+  degraded_reason: string
+  /** 最后一档指标的聚合截止时间；没有聚合数据时为 null。 */
+  as_of: string | null
 }
 
 /** 货架分组列表（已按倍率升序）。 */

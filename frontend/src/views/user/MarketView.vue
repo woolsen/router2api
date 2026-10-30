@@ -104,32 +104,33 @@
             </div>
           </div>
 
-          <!-- M1 三项指标恒为「数据不足」（stats 为 null）；不展示任何推算数字。 -->
+          <!-- 每格都标明窗口：请求量与成功率取 24h 档，首包 P95 取 1h 档。
+               窗口缺失或分位数为 null 时显示「数据不足」，不展示推算数字。 -->
           <div
             class="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-3 text-center dark:bg-dark-700/40"
           >
-            <div>
+            <div data-test="market-metric-requests">
               <div class="text-[11px] text-gray-500 dark:text-dark-400">
-                {{ t('market.metrics.requests') }}
+                {{ t('market.metrics.requests24h') }}
               </div>
               <div class="mt-1 text-xs font-medium text-gray-400 dark:text-dark-500">
-                {{ metricText('requests', group) }}
+                {{ metricRequests(group) }}
               </div>
             </div>
-            <div>
+            <div data-test="market-metric-success">
               <div class="text-[11px] text-gray-500 dark:text-dark-400">
-                {{ t('market.metrics.successRate') }}
+                {{ t('market.metrics.successRate24h') }}
               </div>
               <div class="mt-1 text-xs font-medium text-gray-400 dark:text-dark-500">
-                {{ metricText('success_rate', group) }}
+                {{ metricSuccessRate(group) }}
               </div>
             </div>
-            <div>
+            <div data-test="market-metric-ttft">
               <div class="text-[11px] text-gray-500 dark:text-dark-400">
-                {{ t('market.metrics.latency') }}
+                {{ t('market.metrics.ttftP951h') }}
               </div>
               <div class="mt-1 text-xs font-medium text-gray-400 dark:text-dark-500">
-                {{ metricText('avg_latency_ms', group) }}
+                {{ metricTTFTP95(group) }}
               </div>
             </div>
           </div>
@@ -179,15 +180,27 @@ const load = async () => {
 }
 
 /**
- * 指标文案：stats 为 null（M1 的常态）时显示「数据不足」，绝不回落到 0 或估算值。
- * 字段名是 M2 接入 request_metrics 时的占位约定。
+ * 指标文案：窗口为 null 或分位数为 null 时显示「数据不足」，绝不回落到 0 或估算值。
+ *
+ * 请求量与成功率取 24h 档；首包 P95 只在 1h 档给出（跨桶的小时分位数不能精确合并，
+ * 24h 档通常为 null）。每个标签都写明窗口，避免把旧桶误读成当前状态。
  */
-const metricText = (key: string, group: MarketGroup): string => {
-  const value = group.stats?.[key]
-  if (value == null) return t('market.insufficient')
-  if (key === 'success_rate') return `${(value * 100).toFixed(1)}%`
-  if (key === 'avg_latency_ms') return `${Math.round(value)} ms`
-  return String(value)
+const metricRequests = (group: MarketGroup): string => {
+  const window = group.stats?.last_24h
+  if (!window) return t('market.insufficient')
+  return String(window.requests)
+}
+
+const metricSuccessRate = (group: MarketGroup): string => {
+  const window = group.stats?.last_24h
+  if (!window) return t('market.insufficient')
+  return `${(window.success_rate * 100).toFixed(1)}%`
+}
+
+const metricTTFTP95 = (group: MarketGroup): string => {
+  const p95 = group.stats?.last_hour?.p95_ttft_ms
+  if (p95 == null) return t('market.insufficient')
+  return `${Math.round(p95)} ms`
 }
 
 /** 货架「使用」：跳转密钥创建流程并预选该分组。 */

@@ -23,6 +23,12 @@ const (
 	// MarketStatsMinSamples 是货架展示指标的最小 24h 样本数。
 	// 与降级阈值 20 刻意分开：20 是运维信号，50 是对用户展示数字的承诺。
 	MarketStatsMinSamples = 50
+	// MetricsAggregationLookback 是补算的最大回看范围。
+	// 停机超过该范围时只补最近 48 个整点，避免一次启动扫描无限历史。
+	MetricsAggregationLookback = 48 * time.Hour
+	// MarketHealthCacheTTL 是货架健康判定结果的共享缓存时间。
+	// 每张货架卡片都看同一批分组，30 秒足够便宜且不会让降级标记明显滞后。
+	MarketHealthCacheTTL = 30 * time.Second
 )
 
 // 降级原因使用稳定字符串，前端与运维告警可以据此区分信号。
@@ -126,6 +132,15 @@ type GroupMetricRepository interface {
 	ListGroupMetrics(ctx context.Context, groupIDs []int64, from, to time.Time) ([]GroupMetric, error)
 	// GroupHealthSamples 批量读取最近 1 小时与最近 15 分钟的原始计数。
 	GroupHealthSamples(ctx context.Context, groupIDs []int64, since, recentSince time.Time) (map[int64]GroupHealthSample, error)
+	// LatestGroupMetricHour 返回小时表中最大的已聚合小时；空表返回 nil。
+	// 启动补算用它找回停机期间缺失的小时，而不是只看 now-1h。
+	LatestGroupMetricHour(ctx context.Context) (*time.Time, error)
+}
+
+// cachedGroupHealth 是 HealthMany 的共享缓存条目。
+type cachedGroupHealth struct {
+	health    Health
+	expiresAt time.Time
 }
 
 // MetricsAggregator 负责把 request_metrics 按整点聚合成 group_metric_hourly，
@@ -133,6 +148,14 @@ type GroupMetricRepository interface {
 type MetricsAggregator struct {
 	repo GroupMetricRepository
 	now  func() time.Time
+
+	// aggregateMu 串行化补算；nextHour 是下一个待聚合的整点，零值表示尚未恢复。
+	aggregateMu sync.Mutex
+	nextHour    time.Time
+
+	// healthMu 保护 30 秒共享缓存，避免每个货架请求都扫原始表。
+	healthMu    sync.Mutex
+	healthCache map[int64]cachedGroupHealth
 
 	startOnce sync.Once
 	stopCh    chan struct{}
@@ -143,9 +166,10 @@ type MetricsAggregator struct {
 // NewMetricsAggregator 创建小时聚合器。调用 Start 后按整点调度。
 func NewMetricsAggregator(repo GroupMetricRepository) *MetricsAggregator {
 	return &MetricsAggregator{
-		repo:   repo,
-		now:    time.Now,
-		stopCh: make(chan struct{}),
+		repo:        repo,
+		now:         time.Now,
+		healthCache: make(map[int64]cachedGroupHealth),
+		stopCh:      make(chan struct{}),
 	}
 }
 
@@ -184,6 +208,10 @@ func (a *MetricsAggregator) Health(ctx context.Context, groupID int64) (Health, 
 }
 
 // HealthMany 批量判定分组降级状态，货架用它避免逐分组查询的 N+1。
+//
+// 结果按分组共享缓存 MarketHealthCacheTTL（30 秒）：同一批货架请求、以及 30 秒内
+// 的后续请求都不会重复扫描 request_metrics。缓存只保留成功结果，查询失败不缓存，
+// 下一次请求会立即重试。
 func (a *MetricsAggregator) HealthMany(ctx context.Context, groupIDs []int64) (map[int64]Health, error) {
 	out := make(map[int64]Health, len(groupIDs))
 	if a == nil || a.repo == nil {
@@ -194,17 +222,50 @@ func (a *MetricsAggregator) HealthMany(ctx context.Context, groupIDs []int64) (m
 	}
 
 	now := a.now().UTC()
-	samples, err := a.repo.GroupHealthSamples(
-		ctx,
-		groupIDs,
-		now.Add(-time.Hour),
-		now.Add(-DegradedNoSuccessWindow),
-	)
-	if err != nil {
-		return nil, err
+	missing := make([]int64, 0, len(groupIDs))
+	seen := make(map[int64]struct{}, len(groupIDs))
+
+	a.healthMu.Lock()
+	if a.healthCache == nil {
+		a.healthCache = make(map[int64]cachedGroupHealth)
+	}
+	for groupID, entry := range a.healthCache {
+		if !now.Before(entry.expiresAt) {
+			delete(a.healthCache, groupID)
+		}
 	}
 	for _, groupID := range groupIDs {
-		out[groupID] = evaluateGroupHealth(samples[groupID])
+		if _, duplicate := seen[groupID]; duplicate {
+			continue
+		}
+		seen[groupID] = struct{}{}
+		if entry, ok := a.healthCache[groupID]; ok && now.Before(entry.expiresAt) {
+			out[groupID] = entry.health
+			continue
+		}
+		missing = append(missing, groupID)
+	}
+	a.healthMu.Unlock()
+
+	if len(missing) > 0 {
+		samples, err := a.repo.GroupHealthSamples(
+			ctx,
+			missing,
+			now.Add(-time.Hour),
+			now.Add(-DegradedNoSuccessWindow),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		expiresAt := now.Add(MarketHealthCacheTTL)
+		a.healthMu.Lock()
+		for _, groupID := range missing {
+			health := evaluateGroupHealth(samples[groupID])
+			out[groupID] = health
+			a.healthCache[groupID] = cachedGroupHealth{health: health, expiresAt: expiresAt}
+		}
+		a.healthMu.Unlock()
 	}
 	return out, nil
 }
@@ -233,32 +294,32 @@ func evaluateGroupHealth(sample GroupHealthSample) Health {
 
 // GroupMetrics 返回指定分组最近 1 小时与最近 24 小时的聚合摘要。
 //
-// 读取的是 group_metric_hourly，不扫描 request_metrics；最新桶的结束时间作为
-// AsOf 返回。若分组在最近 25 小时内没有聚合行，则结果中不包含该分组。
+// 窗口锚点固定为 now.Truncate(time.Hour)，而不是“该分组的最新桶”：
+//   - last_hour 只取 [currentHour-1h, currentHour)；
+//   - last_24h 只汇总 [currentHour-24h, currentHour)。
+//
+// 停更超过 1 小时的分组不会有 last_hour；停更超过 24 小时的分组整条摘要都不存在。
+// 窗口内没有行时对应字段为 nil（对外 JSON 为 null），绝不把旧桶冒充当前窗口。
 func (a *MetricsAggregator) GroupMetrics(ctx context.Context, groupIDs []int64) (map[int64]GroupMetricSummary, error) {
 	out := make(map[int64]GroupMetricSummary, len(groupIDs))
 	if a == nil || a.repo == nil || len(groupIDs) == 0 {
 		return out, nil
 	}
 
-	// 多取一小时用于容忍时钟边界；24h 窗口仍以最新桶为右端对齐。
 	now := a.now().UTC()
 	currentHour := now.Truncate(time.Hour)
-	rows, err := a.repo.ListGroupMetrics(
-		ctx,
-		groupIDs,
-		currentHour.Add(-25*time.Hour),
-		currentHour.Add(time.Hour),
-	)
+	windowStart := currentHour.Add(-24 * time.Hour)
+	rows, err := a.repo.ListGroupMetrics(ctx, groupIDs, windowStart, currentHour)
 	if err != nil {
 		return nil, err
 	}
 
+	lastHourStart := currentHour.Add(-time.Hour)
 	byGroup := make(map[int64][]GroupMetric)
 	for _, row := range rows {
 		row.Hour = row.Hour.UTC().Truncate(time.Hour)
-		// 只接受已经完整结束的小时桶；手工重算当前小时不能提前冒充可展示数据。
-		if row.Hour.Add(time.Hour).After(now) {
+		// 只接受已经完整结束且位于 24h 窗口内的小时桶。
+		if row.Hour.Before(windowStart) || !row.Hour.Before(currentHour) {
 			continue
 		}
 		byGroup[row.GroupID] = append(byGroup[row.GroupID], row)
@@ -266,30 +327,27 @@ func (a *MetricsAggregator) GroupMetrics(ctx context.Context, groupIDs []int64) 
 
 	for groupID, groupRows := range byGroup {
 		latest := groupRows[0].Hour
-		for _, row := range groupRows[1:] {
+		hourRows := make([]GroupMetric, 0, 1)
+		for _, row := range groupRows {
 			if row.Hour.After(latest) {
 				latest = row.Hour
 			}
-		}
-
-		windowStart := latest.Add(-23 * time.Hour)
-		windowRows := make([]GroupMetric, 0, len(groupRows))
-		var lastHour GroupMetric
-		for _, row := range groupRows {
-			if row.Hour.Before(windowStart) || row.Hour.After(latest) {
-				continue
-			}
-			windowRows = append(windowRows, row)
-			if row.Hour.Equal(latest) {
-				lastHour = row
+			if row.Hour.Equal(lastHourStart) {
+				hourRows = append(hourRows, row)
 			}
 		}
 
 		asOf := latest.Add(time.Hour)
-		dayWindow := summarizeGroupMetricWindow(windowRows, len(windowRows) == 1)
-		hourWindow := summarizeGroupMetricWindow([]GroupMetric{lastHour}, true)
+		dayWindow := summarizeGroupMetricWindow(groupRows, len(groupRows) == 1)
+
+		var hourWindow *GroupMetricWindow
+		if len(hourRows) > 0 {
+			window := summarizeGroupMetricWindow(hourRows, len(hourRows) == 1)
+			hourWindow = &window
+		}
+
 		out[groupID] = GroupMetricSummary{
-			LastHour:   &hourWindow,
+			LastHour:   hourWindow,
 			Last24h:    &dayWindow,
 			AsOf:       &asOf,
 			SampleSize: dayWindow.Requests,
@@ -329,7 +387,8 @@ func summarizeGroupMetricWindow(rows []GroupMetric, includePercentiles bool) Gro
 	return window
 }
 
-// Start 启动小时聚合任务：启动时先补算上一个完整小时，此后每小时第 5 分钟重算。
+// Start 启动小时聚合任务：启动时从最后已聚合小时补到上一个完整小时，
+// 此后每小时第 5 分钟继续补算。跨小时停机或单次失败留下的缺口会被重试。
 func (a *MetricsAggregator) Start() {
 	if a == nil || a.repo == nil {
 		return
@@ -341,7 +400,7 @@ func (a *MetricsAggregator) Start() {
 
 			a.runOnce()
 
-			timer := time.NewTimer(durationUntilNextRun(time.Now()))
+			timer := time.NewTimer(durationUntilNextRun(a.now()))
 			defer timer.Stop()
 			for {
 				select {
@@ -349,7 +408,7 @@ func (a *MetricsAggregator) Start() {
 					a.runOnce()
 					// 若定时器在 :05 边界前几毫秒提前触发，重排后会落在同一个 :05；
 					// 重算是幂等的，不会重复计数。
-					timer.Reset(durationUntilNextRun(time.Now()))
+					timer.Reset(durationUntilNextRun(a.now()))
 				case <-a.stopCh:
 					return
 				}
@@ -367,16 +426,56 @@ func (a *MetricsAggregator) Stop() {
 	a.wg.Wait()
 }
 
-// runOnce 聚合上一个完整小时。
+// runOnce 从下一个待聚合小时补到上一个完整小时。
+//
+// nextHour 在第一次运行时由小时表的 MAX(hour) 恢复（空表则从上一个完整小时开始），
+// 之后只在单小时聚合成功后才前进。任何一次失败都会停在失败的小时，下一次 tick
+// 从同一小时重试；回看范围有界为 MetricsAggregationLookback（48h）。
 func (a *MetricsAggregator) runOnce() {
+	if a == nil || a.repo == nil {
+		return
+	}
+
+	a.aggregateMu.Lock()
+	defer a.aggregateMu.Unlock()
+
 	now := a.now().UTC()
-	hour := now.Truncate(time.Hour).Add(-time.Hour)
+	currentHour := now.Truncate(time.Hour)
+	lastCompleteHour := currentHour.Add(-time.Hour)
+	earliestHour := currentHour.Add(-MetricsAggregationLookback)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+	if a.nextHour.IsZero() {
+		queryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		latest, err := a.repo.LatestGroupMetricHour(queryCtx)
+		cancel()
+		if err != nil {
+			log.Printf("[MetricsAggregator] load latest aggregated hour failed: %v", err)
+			return
+		}
+		if latest == nil {
+			// 全新小时表：只聚合上一个完整小时，不做无意义的历史扫描。
+			a.nextHour = lastCompleteHour
+		} else {
+			a.nextHour = latest.UTC().Truncate(time.Hour).Add(time.Hour)
+		}
+	}
 
-	if err := a.AggregateHour(ctx, hour); err != nil {
-		log.Printf("[MetricsAggregator] aggregate hour %s failed: %v", hour.Format(time.RFC3339), err)
+	if a.nextHour.Before(earliestHour) {
+		a.nextHour = earliestHour
+	}
+	if a.nextHour.After(lastCompleteHour) {
+		return
+	}
+
+	for hour := a.nextHour; !hour.After(lastCompleteHour); hour = hour.Add(time.Hour) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		err := a.AggregateHour(ctx, hour)
+		cancel()
+		if err != nil {
+			log.Printf("[MetricsAggregator] aggregate hour %s failed: %v", hour.Format(time.RFC3339), err)
+			return
+		}
+		a.nextHour = hour.Add(time.Hour)
 	}
 }
 

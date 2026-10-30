@@ -36,9 +36,12 @@ type fakeGroupMetricRepo struct {
 	samples []fakeRequestSample
 	metrics map[fakeGroupMetricKey]GroupMetric
 
-	aggregateErr error
-	listErr      error
-	healthErr    error
+	aggregateErr   error
+	listErr        error
+	healthErr      error
+	latestHourErr  error
+	aggregateCalls []time.Time
+	healthCalls    int
 
 	lastAggregateFrom time.Time
 	lastAggregateTo   time.Time
@@ -60,6 +63,7 @@ func (r *fakeGroupMetricRepo) AggregateRequestMetrics(
 ) ([]GroupMetric, error) {
 	r.lastAggregateFrom = from
 	r.lastAggregateTo = to
+	r.aggregateCalls = append(r.aggregateCalls, from)
 	if r.aggregateErr != nil {
 		return nil, r.aggregateErr
 	}
@@ -182,6 +186,7 @@ func (r *fakeGroupMetricRepo) GroupHealthSamples(
 	groupIDs []int64,
 	since, recentSince time.Time,
 ) (map[int64]GroupHealthSample, error) {
+	r.healthCalls++
 	if r.healthErr != nil {
 		return nil, r.healthErr
 	}
@@ -214,6 +219,20 @@ func (r *fakeGroupMetricRepo) GroupHealthSamples(
 		out[groupID] = window
 	}
 	return out, nil
+}
+
+func (r *fakeGroupMetricRepo) LatestGroupMetricHour(context.Context) (*time.Time, error) {
+	if r.latestHourErr != nil {
+		return nil, r.latestHourErr
+	}
+	var latest *time.Time
+	for key := range r.metrics {
+		hour := key.hour.UTC().Truncate(time.Hour)
+		if latest == nil || hour.After(*latest) {
+			latest = &hour
+		}
+	}
+	return latest, nil
 }
 
 func (r *fakeGroupMetricRepo) getMetric(t *testing.T, groupID int64, hour time.Time) GroupMetric {
@@ -643,6 +662,178 @@ func TestGroupMetricsSkipsEmptyGroupList(t *testing.T) {
 	summaries, err := agg.GroupMetrics(context.Background(), nil)
 	require.NoError(t, err)
 	require.Empty(t, summaries)
+}
+
+func TestGroupMetricsDropsStaleLastHourButKeepsDayWindow(t *testing.T) {
+	const groupID = int64(24)
+	now := time.Date(2026, 10, 29, 12, 30, 0, 0, time.UTC)
+	staleHour := time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)
+	repo := newFakeGroupMetricRepo()
+	repo.metrics[fakeGroupMetricKey{groupID: groupID, hour: staleHour}] = GroupMetric{
+		GroupID:  groupID,
+		Hour:     staleHour,
+		Requests: 60,
+	}
+
+	agg := newTestMetricsAggregator(repo, now)
+	summaries, err := agg.GroupMetrics(context.Background(), []int64{groupID})
+	require.NoError(t, err)
+	summary, ok := summaries[groupID]
+	require.True(t, ok)
+
+	require.Nil(t, summary.LastHour, "a bucket older than one hour must not masquerade as last_hour")
+	require.NotNil(t, summary.Last24h)
+	require.Equal(t, 60, summary.Last24h.Requests)
+	require.Equal(t, 60, summary.SampleSize)
+	require.NotNil(t, summary.AsOf)
+	require.True(t, summary.AsOf.Equal(staleHour.Add(time.Hour)),
+		"as_of describes the newest bucket in the window, even when stale")
+}
+
+func TestGroupMetricsKeepsWindowAnchoredAcrossMissingHours(t *testing.T) {
+	const groupID = int64(25)
+	now := time.Date(2026, 10, 29, 12, 30, 0, 0, time.UTC)
+	currentHour := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	repo := newFakeGroupMetricRepo()
+	// 09:00 与 11:00 有数据，10:00 缺失：窗口仍应固定为当前小时，不向最新桶收缩。
+	repo.metrics[fakeGroupMetricKey{groupID: groupID, hour: currentHour.Add(-3 * time.Hour)}] = GroupMetric{
+		GroupID:  groupID,
+		Hour:     currentHour.Add(-3 * time.Hour),
+		Requests: 40,
+	}
+	repo.metrics[fakeGroupMetricKey{groupID: groupID, hour: currentHour.Add(-time.Hour)}] = GroupMetric{
+		GroupID:  groupID,
+		Hour:     currentHour.Add(-time.Hour),
+		Requests: 20,
+	}
+
+	agg := newTestMetricsAggregator(repo, now)
+	summaries, err := agg.GroupMetrics(context.Background(), []int64{groupID})
+	require.NoError(t, err)
+	summary := summaries[groupID]
+
+	require.NotNil(t, summary.Last24h)
+	require.Equal(t, 60, summary.Last24h.Requests, "missing hours must not shift the 24h window")
+	require.NotNil(t, summary.LastHour)
+	require.Equal(t, 20, summary.LastHour.Requests)
+	require.True(t, summary.AsOf.Equal(currentHour))
+}
+
+func TestMetricsAggregatorCatchesUpAfterDowntime(t *testing.T) {
+	now := time.Date(2026, 10, 29, 15, 30, 0, 0, time.UTC)
+	repo := newFakeGroupMetricRepo()
+	lastAggregated := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	repo.metrics[fakeGroupMetricKey{groupID: 1, hour: lastAggregated}] = GroupMetric{
+		GroupID:  1,
+		Hour:     lastAggregated,
+		Requests: 1,
+	}
+
+	agg := newTestMetricsAggregator(repo, now)
+	agg.runOnce()
+
+	require.Equal(t, []time.Time{
+		time.Date(2026, 10, 29, 13, 0, 0, 0, time.UTC),
+		time.Date(2026, 10, 29, 14, 0, 0, 0, time.UTC),
+	}, repo.aggregateCalls, "hours missed while the process was down must be backfilled in order")
+
+	// 已经追平后再跑一次不应重复聚合。
+	repo.aggregateCalls = nil
+	agg.runOnce()
+	require.Empty(t, repo.aggregateCalls)
+}
+
+func TestMetricsAggregatorRetriesFailedHourWithoutSkipping(t *testing.T) {
+	current := time.Date(2026, 10, 29, 14, 30, 0, 0, time.UTC)
+	repo := newFakeGroupMetricRepo()
+	lastAggregated := time.Date(2026, 10, 29, 11, 0, 0, 0, time.UTC)
+	repo.metrics[fakeGroupMetricKey{groupID: 1, hour: lastAggregated}] = GroupMetric{
+		GroupID:  1,
+		Hour:     lastAggregated,
+		Requests: 1,
+	}
+
+	agg := newTestMetricsAggregator(repo, current)
+	agg.now = func() time.Time { return current }
+	repo.aggregateErr = errors.New("db down")
+	agg.runOnce()
+	require.Equal(t, []time.Time{time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)}, repo.aggregateCalls)
+
+	repo.aggregateErr = nil
+	repo.aggregateCalls = nil
+	current = current.Add(time.Hour) // 15:30：上一完整小时是 14:00
+	agg.runOnce()
+
+	require.Equal(t, []time.Time{
+		time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 10, 29, 13, 0, 0, 0, time.UTC),
+		time.Date(2026, 10, 29, 14, 0, 0, 0, time.UTC),
+	}, repo.aggregateCalls, "the failed hour must be retried before newer hours")
+}
+
+func TestMetricsAggregatorCapsBackfillAtLookback(t *testing.T) {
+	now := time.Date(2026, 10, 29, 12, 30, 0, 0, time.UTC)
+	currentHour := now.Truncate(time.Hour)
+	repo := newFakeGroupMetricRepo()
+	veryOld := currentHour.Add(-72 * time.Hour)
+	repo.metrics[fakeGroupMetricKey{groupID: 1, hour: veryOld}] = GroupMetric{
+		GroupID:  1,
+		Hour:     veryOld,
+		Requests: 1,
+	}
+
+	agg := newTestMetricsAggregator(repo, now)
+	agg.runOnce()
+
+	require.Len(t, repo.aggregateCalls, 48)
+	require.True(t, repo.aggregateCalls[0].Equal(currentHour.Add(-MetricsAggregationLookback)))
+	require.True(t, repo.aggregateCalls[len(repo.aggregateCalls)-1].Equal(currentHour.Add(-time.Hour)))
+}
+
+func TestHealthManySharesThirtySecondCache(t *testing.T) {
+	const groupID = int64(26)
+	current := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	repo := newFakeGroupMetricRepo()
+	repo.addSample(fakeRequestSample{
+		groupID:    groupID,
+		at:         current.Add(-time.Minute),
+		statusCode: 200,
+	})
+
+	agg := newTestMetricsAggregator(repo, current)
+	agg.now = func() time.Time { return current }
+
+	_, err := agg.HealthMany(context.Background(), []int64{groupID})
+	require.NoError(t, err)
+	_, err = agg.HealthMany(context.Background(), []int64{groupID})
+	require.NoError(t, err)
+	require.Equal(t, 1, repo.healthCalls, "a second shelf request within 30s must reuse the cache")
+
+	current = current.Add(29 * time.Second)
+	_, err = agg.HealthMany(context.Background(), []int64{groupID})
+	require.NoError(t, err)
+	require.Equal(t, 1, repo.healthCalls)
+
+	current = current.Add(time.Second) // 距首次查询正好 30 秒，缓存过期
+	_, err = agg.HealthMany(context.Background(), []int64{groupID})
+	require.NoError(t, err)
+	require.Equal(t, 2, repo.healthCalls)
+}
+
+func TestHealthManyDoesNotCacheFailures(t *testing.T) {
+	const groupID = int64(27)
+	repo := newFakeGroupMetricRepo()
+	repo.healthErr = errors.New("db down")
+	agg := newTestMetricsAggregator(repo, time.Now())
+
+	_, err := agg.HealthMany(context.Background(), []int64{groupID})
+	require.ErrorIs(t, err, repo.healthErr)
+
+	repo.healthErr = nil
+	healths, err := agg.HealthMany(context.Background(), []int64{groupID})
+	require.NoError(t, err)
+	require.Equal(t, 2, repo.healthCalls, "a failed lookup must not poison the cache")
+	require.Contains(t, healths, groupID)
 }
 
 func TestNextAggregationRunIsAtMinuteFive(t *testing.T) {

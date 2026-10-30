@@ -671,9 +671,9 @@ export default {
     insufficient: '数据不足',
     groupUnavailable: '该分组当前不可用于你的账号',
     metrics: {
-      requests: '请求量',
-      successRate: '成功率',
-      latency: '平均耗时'
+      requests24h: '近 24 小时请求量',
+      successRate24h: '近 24 小时成功率',
+      ttftP951h: '近 1 小时首包 P95'
     }
   },
 
