@@ -2141,7 +2141,7 @@ export interface UpdateUserRequest {
   password?: string
   username?: string
   notes?: string
-  role?: 'admin' | 'user'
+  role?: 'admin' | 'user' | 'merchant'
   balance?: number
   concurrency?: number
   rpm_limit?: number

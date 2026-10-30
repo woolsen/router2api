@@ -577,6 +577,7 @@ export default {
         passwordPlaceholder: 'Enter password (leave empty to keep unchanged)',
         roleLabel: 'Role',
         selectRole: 'Select role',
+        merchantBindingHint: 'Merchant accounts must be bound to a merchant during onboarding before they can access the merchant console.',
         balanceLabel: 'Balance',
         concurrencyLabel: 'Concurrency',
         statusLabel: 'Status',

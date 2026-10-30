@@ -51,6 +51,7 @@ vi.mock('@/api/auth', () => ({
 interface MockAuthState {
   isAuthenticated: boolean
   isAdmin: boolean
+  isMerchant?: boolean
   isSimpleMode: boolean
   backendModeEnabled: boolean
   hasPendingAuthSession: boolean
@@ -67,6 +68,7 @@ function simulateGuard(
 ): string | null {
   const requiresAuth = toMeta.requiresAuth !== false
   const requiresAdmin = toMeta.requiresAdmin === true
+  const requiresMerchant = toMeta.requiresMerchant === true
 
   if (toPath === '/setup' && authState.setupNeedsSetup === false) {
     return resolveCompletedSetupRedirectPath(authState.isAuthenticated, authState.isAdmin)
@@ -78,10 +80,12 @@ function simulateGuard(
       authState.isAuthenticated &&
       (toPath === '/login' || toPath === '/register')
     ) {
-      if (authState.backendModeEnabled && !authState.isAdmin) {
+      if (authState.backendModeEnabled && !authState.isAdmin && !authState.isMerchant) {
         return null
       }
-      return authState.isAdmin ? '/admin/dashboard' : '/dashboard'
+      if (authState.isAdmin) return '/admin/dashboard'
+      if (authState.isMerchant) return '/merchant/dashboard'
+      return '/dashboard'
     }
     if (authState.backendModeEnabled && !authState.isAuthenticated) {
       const allowed = ['/login', '/key-usage', '/setup', '/payment/result']
@@ -114,6 +118,11 @@ function simulateGuard(
     return '/dashboard'
   }
 
+  // 商户后台只对 merchant 角色开放
+  if (requiresMerchant && !authState.isMerchant) {
+    return '/home'
+  }
+
   // 简易模式限制
   if (authState.isSimpleMode) {
     const restrictedPaths = [
@@ -127,9 +136,9 @@ function simulateGuard(
     }
   }
 
-  // Backend mode: admin gets full access, non-admin blocked
+  // Backend mode: admin and merchant get full access, others blocked
   if (authState.backendModeEnabled) {
-    if (authState.isAuthenticated && authState.isAdmin) {
+    if (authState.isAuthenticated && (authState.isAdmin || authState.isMerchant)) {
       return null
     }
     const allowed = ['/login', '/key-usage', '/setup', '/payment/result']
@@ -431,6 +440,35 @@ describe('路由守卫逻辑', () => {
       }
       const redirect = simulateGuard('/login', { requiresAuth: false }, authState)
       expect(redirect).toBe('/admin/dashboard')
+    })
+
+    it('merchant: /merchant/dashboard is allowed', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isMerchant: true,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+        hasPendingAuthSession: false,
+      }
+      const redirect = simulateGuard('/merchant/dashboard', {
+        requiresAuth: true,
+        requiresMerchant: true,
+      }, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('merchant: /login redirects to /merchant/dashboard', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isMerchant: true,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+        hasPendingAuthSession: false,
+      }
+      const redirect = simulateGuard('/login', { requiresAuth: false }, authState)
+      expect(redirect).toBe('/merchant/dashboard')
     })
 
     it('non-admin authenticated: /dashboard redirects to /login', () => {

@@ -643,6 +643,7 @@ export default {
         passwordPlaceholder: '请输入密码（留空则不修改）',
         roleLabel: '角色',
         selectRole: '选择角色',
+        merchantBindingHint: '商户账号需在入驻流程中绑定商户后才能访问商户后台。',
         balanceLabel: '余额',
         concurrencyLabel: '并发数',
         statusLabel: '状态',

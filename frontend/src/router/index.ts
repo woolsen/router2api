@@ -999,9 +999,11 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
 
-  // Backend mode: admin gets full access, non-admin blocked
+  // Backend mode: admin and merchant get full access, everyone else is blocked.
+  // Mirrors the backend: BackendModeUserGuard allows both roles, so the frontend
+  // must not bounce an authenticated merchant from /merchant/dashboard to /login.
   if (appStore.backendModeEnabled) {
-    if (authStore.isAuthenticated && authStore.isAdmin) {
+    if (authStore.isAuthenticated && (authStore.isAdmin || authStore.isMerchant)) {
       next()
       return
     }

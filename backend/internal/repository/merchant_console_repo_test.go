@@ -36,6 +36,7 @@ func TestMerchantConsoleRepositoryDailyUsageFiltersBillableRows(t *testing.T) {
 
 	mock.ExpectQuery(`(?s)to_char\(\(created_at AT TIME ZONE 'UTC'\)::date, 'YYYY-MM-DD'\).*`+
 		`COUNT\(\*\)::bigint.*`+
+		`COALESCE\(SUM\(actual_cost\) FILTER \(WHERE commission_rate IS NOT NULL\), 0\).*`+
 		`FROM usage_logs\s+WHERE merchant_id = \$1\s+AND created_at >= \$2\s+`+
 		`AND created_at < \$3\s+AND actual_cost > 0\s+AND billing_type = \$4\s+`+
 		`GROUP BY 1\s+ORDER BY 1`).
@@ -52,5 +53,11 @@ func TestMerchantConsoleRepositoryDailyUsageFiltersBillableRows(t *testing.T) {
 	require.InDelta(t, 1.0, got[0].GrossCost, 1e-9)
 	require.InDelta(t, 0.92, got[0].NetPayable, 1e-9)
 	require.Equal(t, int64(3), got[1].Requests)
+	// 2026-10-24 还包含一条 commission_rate IS NULL 的 5.0 用量；它必须被
+	// gross 的 FILTER 排除，否则 gross != commission + net_payable。
+	for _, point := range got {
+		require.InDelta(t, point.GrossCost, point.Commission+point.NetPayable, 1e-9,
+			"gross must equal commission + net_payable for %s", point.Date)
+	}
 	require.NoError(t, mock.ExpectationsWereMet())
 }

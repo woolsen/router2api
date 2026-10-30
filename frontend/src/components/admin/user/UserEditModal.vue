@@ -36,6 +36,9 @@
           :options="roleOptions"
           :searchable="false"
         />
+        <p v-if="form.role === 'merchant'" class="input-hint">
+          {{ t('admin.users.form.merchantBindingHint') }}
+        </p>
       </div>
       <div>
         <label class="input-label">{{ t('admin.users.notes') }}</label>
@@ -103,7 +106,8 @@ const { t } = useI18n(); const appStore = useAppStore(); const { copyToClipboard
 const submitting = ref(false); const passwordCopied = ref(false)
 const roleOptions = computed(() => [
   { value: 'user', label: t('admin.users.roles.user') },
-  { value: 'admin', label: t('admin.users.roles.admin') }
+  { value: 'admin', label: t('admin.users.roles.admin') },
+  { value: 'merchant', label: t('admin.users.roles.merchant') }
 ])
 const form = reactive({
   email: '',

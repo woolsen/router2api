@@ -23,7 +23,7 @@ const merchantDailyUsageQuery = `
 SELECT
     to_char((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD'),
     COUNT(*)::bigint,
-    COALESCE(SUM(actual_cost), 0),
+    COALESCE(SUM(actual_cost) FILTER (WHERE commission_rate IS NOT NULL), 0),
     COALESCE(SUM(actual_cost * commission_rate) FILTER (WHERE commission_rate IS NOT NULL), 0),
     COALESCE(SUM(actual_cost * (1 - commission_rate)) FILTER (WHERE commission_rate IS NOT NULL), 0)
 FROM usage_logs
