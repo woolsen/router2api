@@ -177,37 +177,41 @@ func (r *fakeGroupMetricRepo) ListGroupMetrics(
 	return out, nil
 }
 
-func (r *fakeGroupMetricRepo) GroupHealthSample(
+func (r *fakeGroupMetricRepo) GroupHealthSamples(
 	_ context.Context,
-	groupID int64,
+	groupIDs []int64,
 	since, recentSince time.Time,
-) (GroupHealthSample, error) {
+) (map[int64]GroupHealthSample, error) {
 	if r.healthErr != nil {
-		return GroupHealthSample{}, r.healthErr
+		return nil, r.healthErr
 	}
-	var out GroupHealthSample
-	var ttft []int
-	for _, sample := range r.samples {
-		if sample.groupID != groupID || sample.at.Before(since) {
-			continue
-		}
-		out.Requests++
-		if sample.upstreamError {
-			out.UpstreamFailures++
-		}
-		if sample.at.After(recentSince) || sample.at.Equal(recentSince) {
-			out.RecentRequests++
-			if !sample.upstreamError {
-				out.RecentSuccesses++
+	out := make(map[int64]GroupHealthSample, len(groupIDs))
+	for _, groupID := range groupIDs {
+		var window GroupHealthSample
+		var ttft []int
+		for _, sample := range r.samples {
+			if sample.groupID != groupID || sample.at.Before(since) {
+				continue
+			}
+			window.Requests++
+			if sample.upstreamError {
+				window.UpstreamFailures++
+			}
+			if sample.at.After(recentSince) || sample.at.Equal(recentSince) {
+				window.RecentRequests++
+				if !sample.upstreamError {
+					window.RecentSuccesses++
+				}
+			}
+			if sample.firstTokenMS > 0 {
+				ttft = append(ttft, sample.firstTokenMS)
 			}
 		}
-		if sample.firstTokenMS > 0 {
-			ttft = append(ttft, sample.firstTokenMS)
+		sort.Ints(ttft)
+		if len(ttft) > 0 {
+			window.P95TTFT = fakePercentile(ttft, 0.95)
 		}
-	}
-	sort.Ints(ttft)
-	if len(ttft) > 0 {
-		out.P95TTFT = fakePercentile(ttft, 0.95)
+		out[groupID] = window
 	}
 	return out, nil
 }
@@ -446,6 +450,73 @@ func TestHealthDegradesWhenNoSuccessInLastFifteenMinutes(t *testing.T) {
 	require.True(t, h.Degraded)
 	require.Equal(t, DegradedReasonNoRecentSuccess, h.Reason)
 	require.Equal(t, 5, h.SampleSize)
+}
+
+func TestHealthDoesNotDegradeAtNineteenSamples(t *testing.T) {
+	const groupID = int64(15)
+	now := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	repo := newFakeGroupMetricRepo()
+	for i := 0; i < 19; i++ {
+		repo.addSample(fakeRequestSample{
+			groupID:       groupID,
+			at:            now.Add(-time.Duration(i) * time.Minute),
+			statusCode:    200,
+			upstreamError: i < 5,
+		})
+	}
+
+	agg := newTestMetricsAggregator(repo, now)
+	h, err := agg.Health(context.Background(), groupID)
+	require.NoError(t, err)
+	require.False(t, h.Degraded, "19 samples is still below the 20-sample floor")
+	require.Equal(t, 19, h.SampleSize)
+}
+
+func TestHealthDoesNotDegradeAtExactlyTenSecondsTTFT(t *testing.T) {
+	const groupID = int64(16)
+	now := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	repo := newFakeGroupMetricRepo()
+	for i := 0; i < 20; i++ {
+		repo.addSample(fakeRequestSample{
+			groupID:      groupID,
+			at:           now.Add(-time.Duration(i) * time.Minute),
+			statusCode:   200,
+			firstTokenMS: 10_000,
+		})
+	}
+
+	agg := newTestMetricsAggregator(repo, now)
+	h, err := agg.Health(context.Background(), groupID)
+	require.NoError(t, err)
+	require.False(t, h.Degraded, "10s exactly is the boundary, not over it")
+}
+
+func TestHealthManyReturnsPerGroup(t *testing.T) {
+	now := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	repo := newFakeGroupMetricRepo()
+	for i := 0; i < 20; i++ {
+		repo.addSample(fakeRequestSample{
+			groupID:       20,
+			at:            now.Add(-time.Duration(i) * time.Minute),
+			statusCode:    200,
+			upstreamError: i < 4,
+		})
+		repo.addSample(fakeRequestSample{
+			groupID:    21,
+			at:         now.Add(-time.Duration(i) * time.Minute),
+			statusCode: 200,
+		})
+	}
+
+	agg := newTestMetricsAggregator(repo, now)
+	healths, err := agg.HealthMany(context.Background(), []int64{20, 21, 999})
+	require.NoError(t, err)
+	require.Len(t, healths, 3)
+	require.True(t, healths[20].Degraded)
+	require.Equal(t, DegradedReasonUpstreamFailureRate, healths[20].Reason)
+	require.False(t, healths[21].Degraded)
+	require.Equal(t, 20, healths[21].SampleSize)
+	require.Equal(t, 0, healths[999].SampleSize)
 }
 
 func TestHealthPropagatesRepositoryError(t *testing.T) {

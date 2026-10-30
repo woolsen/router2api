@@ -38,7 +38,7 @@ type MarketVisibilitySource interface {
 // 降级只标记，不改变分组状态，也不下架分组。
 type MarketMetricsSource interface {
 	GroupMetrics(ctx context.Context, groupIDs []int64) (map[int64]service.GroupMetricSummary, error)
-	Health(ctx context.Context, groupID int64) (service.Health, error)
+	HealthMany(ctx context.Context, groupIDs []int64) (map[int64]service.Health, error)
 }
 
 // MarketGroupsHandler 处理货架（market）的只读查询。
@@ -164,14 +164,20 @@ func (h *MarketGroupsHandler) List(c *gin.Context) {
 	}
 	visible = filterPlazaVisibleGroups(visible, allowedGroups, restrictPublicGroups)
 
-	// 指标一次批量读取，避免每个分组都扫一遍小时表；降级判定按分组查最近窗口。
+	// 指标一次批量读取，避免每个分组都扫一遍小时表；降级判定同样批量查询。
 	summaries := map[int64]service.GroupMetricSummary{}
+	healths := map[int64]service.Health{}
 	if h.metrics != nil && len(visible) > 0 {
 		groupIDs := make([]int64, 0, len(visible))
 		for i := range visible {
 			groupIDs = append(groupIDs, visible[i].ID)
 		}
 		summaries, err = h.metrics.GroupMetrics(c.Request.Context(), groupIDs)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		healths, err = h.metrics.HealthMany(c.Request.Context(), groupIDs)
 		if err != nil {
 			response.ErrorFrom(c, err)
 			return
@@ -196,14 +202,7 @@ func (h *MarketGroupsHandler) List(c *gin.Context) {
 		estimate := ratesErr != nil || g.ImageRateIndependent || g.VideoRateIndependent
 
 		summary := summaries[g.ID]
-		health := service.Health{}
-		if h.metrics != nil {
-			health, err = h.metrics.Health(c.Request.Context(), g.ID)
-			if err != nil {
-				response.ErrorFrom(c, err)
-				return
-			}
-		}
+		health := healths[g.ID]
 
 		out = append(out, marketGroup{
 			ID:             g.ID,

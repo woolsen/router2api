@@ -101,11 +101,15 @@ func (f *fakeMarketMetrics) GroupMetrics(context.Context, []int64) (map[int64]se
 	return f.summaries, nil
 }
 
-func (f *fakeMarketMetrics) Health(_ context.Context, groupID int64) (service.Health, error) {
+func (f *fakeMarketMetrics) HealthMany(_ context.Context, groupIDs []int64) (map[int64]service.Health, error) {
 	if f.healthErr != nil {
-		return service.Health{}, f.healthErr
+		return nil, f.healthErr
 	}
-	return f.health[groupID], nil
+	out := make(map[int64]service.Health, len(groupIDs))
+	for _, groupID := range groupIDs {
+		out[groupID] = f.health[groupID]
+	}
+	return out, nil
 }
 
 // marketPeakRateDTO 与 handler 的 marketPeakRate 同形，测试侧独立声明避免耦合实现。
@@ -270,17 +274,17 @@ func TestMarketGroupsExposesStatsAtFiftySamples(t *testing.T) {
 					HasCache:         true,
 				},
 				Last24h: &service.GroupMetricWindow{
-					Requests:         60,
+					Requests:         50,
 					UpstreamFailures: 3,
 					RequestErrors:    4,
 					TTFTSamples:      50,
-					SuccessRate:      57.0 / 60.0,
-					RequestErrorRate: 4.0 / 60.0,
+					SuccessRate:      47.0 / 50.0,
+					RequestErrorRate: 4.0 / 50.0,
 					CacheHitRate:     0.6,
 					HasCache:         true,
 				},
 				AsOf:       &asOf,
-				SampleSize: 60,
+				SampleSize: 50,
 			},
 		},
 		health: map[int64]service.Health{},
@@ -295,7 +299,7 @@ func TestMarketGroupsExposesStatsAtFiftySamples(t *testing.T) {
 	}
 	require.NotNil(t, group)
 	require.NotNil(t, group.Stats)
-	require.Equal(t, 60, group.SampleSize)
+	require.Equal(t, 50, group.SampleSize)
 	require.NotNil(t, group.AsOf)
 	require.True(t, group.AsOf.Equal(asOf))
 
@@ -312,7 +316,7 @@ func TestMarketGroupsExposesStatsAtFiftySamples(t *testing.T) {
 	require.InDelta(t, cacheHit, *group.Stats.LastHour.CacheHitRate, 1e-9)
 
 	require.NotNil(t, group.Stats.Last24h)
-	require.Equal(t, 60, group.Stats.Last24h.Requests)
+	require.Equal(t, 50, group.Stats.Last24h.Requests)
 	require.Nil(t, group.Stats.Last24h.P95TTFTMs, "multi-bucket percentiles must not be fabricated")
 }
 

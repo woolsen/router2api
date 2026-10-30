@@ -131,29 +131,44 @@ func TestGroupMetricRepositoryListGroupMetrics(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestGroupMetricRepositoryGroupHealthSample(t *testing.T) {
+func TestGroupMetricRepositoryGroupHealthSamples(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := newGroupMetricRepositoryWithSQL(db)
 
 	since := time.Date(2026, 10, 29, 11, 0, 0, 0, time.UTC)
 	recentSince := time.Date(2026, 10, 29, 11, 45, 0, 0, time.UTC)
 
-	mock.ExpectQuery(`(?s)COUNT\(\*\) FILTER \(WHERE created_at >= \$2\) AS requests,\s+`+
+	mock.ExpectQuery(`(?s)SELECT\s+group_id,\s+`+
+		`COUNT\(\*\) FILTER \(WHERE created_at >= \$2\) AS requests,\s+`+
 		`COUNT\(\*\) FILTER \(WHERE created_at >= \$2 AND upstream_error\) AS upstream_failures,.*`+
 		`COUNT\(\*\) FILTER \(WHERE created_at >= \$3\) AS recent_requests,\s+`+
 		`COUNT\(\*\) FILTER \(WHERE created_at >= \$3 AND NOT upstream_error\) AS recent_successes\s+`+
-		`FROM request_metrics\s+WHERE group_id = \$1 AND created_at >= \$2`).
-		WithArgs(int64(9), since, recentSince).
+		`FROM request_metrics\s+WHERE group_id = ANY\(\$1\) AND created_at >= \$2\s+GROUP BY group_id`).
+		WithArgs(pq.Array([]int64{9, 10}), since, recentSince).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"requests", "upstream_failures", "p95_ttft", "recent_requests", "recent_successes",
-		}).AddRow(int64(25), int64(4), 1200.0, int64(6), int64(2)))
+			"group_id", "requests", "upstream_failures", "p95_ttft", "recent_requests", "recent_successes",
+		}).
+			AddRow(int64(9), int64(25), int64(4), 1200.0, int64(6), int64(2)).
+			AddRow(int64(10), int64(3), int64(3), 0.0, int64(3), int64(0)))
 
-	sample, err := repo.GroupHealthSample(context.Background(), 9, since, recentSince)
+	samples, err := repo.GroupHealthSamples(context.Background(), []int64{9, 10}, since, recentSince)
 	require.NoError(t, err)
+	require.Len(t, samples, 2)
+
+	sample := samples[9]
 	require.Equal(t, 25, sample.Requests)
 	require.Equal(t, 4, sample.UpstreamFailures)
 	require.InDelta(t, 1200.0, sample.P95TTFT, 1e-9)
 	require.Equal(t, 6, sample.RecentRequests)
 	require.Equal(t, 2, sample.RecentSuccesses)
+
+	require.Equal(t, 3, samples[10].Requests)
+	require.Equal(t, 3, samples[10].UpstreamFailures)
+	require.Zero(t, samples[10].RecentSuccesses)
+
+	// 空分组列表不能发查询。
+	samples, err = repo.GroupHealthSamples(context.Background(), nil, since, recentSince)
+	require.NoError(t, err)
+	require.Empty(t, samples)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -124,8 +124,8 @@ type GroupMetricRepository interface {
 	UpsertGroupMetrics(ctx context.Context, hour time.Time, metrics []GroupMetric) error
 	// ListGroupMetrics 读取 [from, to) 内指定分组的小时行。
 	ListGroupMetrics(ctx context.Context, groupIDs []int64, from, to time.Time) ([]GroupMetric, error)
-	// GroupHealthSample 读取最近 1 小时与最近 15 分钟的原始计数。
-	GroupHealthSample(ctx context.Context, groupID int64, since, recentSince time.Time) (GroupHealthSample, error)
+	// GroupHealthSamples 批量读取最近 1 小时与最近 15 分钟的原始计数。
+	GroupHealthSamples(ctx context.Context, groupIDs []int64, since, recentSince time.Time) (map[int64]GroupHealthSample, error)
 }
 
 // MetricsAggregator 负责把 request_metrics 按整点聚合成 group_metric_hourly，
@@ -176,39 +176,59 @@ func (a *MetricsAggregator) AggregateHour(ctx context.Context, hour time.Time) e
 //  2. 最近 1 小时请求数 >= 20 且上游失败率 > 10%；
 //  3. 最近 1 小时请求数 >= 20 且流式首包 P95 > 10s。
 func (a *MetricsAggregator) Health(ctx context.Context, groupID int64) (Health, error) {
-	if a == nil || a.repo == nil {
-		return Health{}, ErrMetricsAggregatorUnavailable
+	healths, err := a.HealthMany(ctx, []int64{groupID})
+	if err != nil {
+		return Health{}, err
 	}
+	return healths[groupID], nil
+}
+
+// HealthMany 批量判定分组降级状态，货架用它避免逐分组查询的 N+1。
+func (a *MetricsAggregator) HealthMany(ctx context.Context, groupIDs []int64) (map[int64]Health, error) {
+	out := make(map[int64]Health, len(groupIDs))
+	if a == nil || a.repo == nil {
+		return out, ErrMetricsAggregatorUnavailable
+	}
+	if len(groupIDs) == 0 {
+		return out, nil
+	}
+
 	now := a.now().UTC()
-	sample, err := a.repo.GroupHealthSample(
+	samples, err := a.repo.GroupHealthSamples(
 		ctx,
-		groupID,
+		groupIDs,
 		now.Add(-time.Hour),
 		now.Add(-DegradedNoSuccessWindow),
 	)
 	if err != nil {
-		return Health{}, err
+		return nil, err
 	}
+	for _, groupID := range groupIDs {
+		out[groupID] = evaluateGroupHealth(samples[groupID])
+	}
+	return out, nil
+}
 
+func evaluateGroupHealth(sample GroupHealthSample) Health {
 	health := Health{SampleSize: sample.Requests}
 	if sample.RecentRequests > 0 && sample.RecentSuccesses == 0 {
 		health.Degraded = true
 		health.Reason = DegradedReasonNoRecentSuccess
-		return health, nil
+		return health
 	}
 	if sample.Requests >= DegradedMinSamples {
 		failureRate := float64(sample.UpstreamFailures) / float64(sample.Requests)
 		if failureRate > DegradedMaxUpstreamFailureRate {
 			health.Degraded = true
 			health.Reason = DegradedReasonUpstreamFailureRate
-			return health, nil
+			return health
 		}
 		if sample.P95TTFT > DegradedMaxP95TTFTMs {
 			health.Degraded = true
 			health.Reason = DegradedReasonSlowTTFT
 		}
 	}
-	return health, nil
+	return health
 }
 
 // GroupMetrics 返回指定分组最近 1 小时与最近 24 小时的聚合摘要。

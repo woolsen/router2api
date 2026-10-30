@@ -66,9 +66,10 @@ FROM group_metric_hourly
 WHERE group_id = ANY($1) AND hour >= $2 AND hour < $3
 ORDER BY group_id, hour`
 
-// groupHealthSampleQuery 一次读取健康判定所需的 1h 与 15m 两个窗口。
-const groupHealthSampleQuery = `
+// groupHealthSamplesQuery 一次读取健康判定所需的 1h 与 15m 两个窗口。
+const groupHealthSamplesQuery = `
 SELECT
+    group_id,
     COUNT(*) FILTER (WHERE created_at >= $2) AS requests,
     COUNT(*) FILTER (WHERE created_at >= $2 AND upstream_error) AS upstream_failures,
     COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY first_token_ms)
@@ -76,7 +77,8 @@ SELECT
     COUNT(*) FILTER (WHERE created_at >= $3) AS recent_requests,
     COUNT(*) FILTER (WHERE created_at >= $3 AND NOT upstream_error) AS recent_successes
 FROM request_metrics
-WHERE group_id = $1 AND created_at >= $2`
+WHERE group_id = ANY($1) AND created_at >= $2
+GROUP BY group_id`
 
 type groupMetricRepository struct {
 	sql sqlExecutor
@@ -215,32 +217,47 @@ func (r *groupMetricRepository) ListGroupMetrics(
 	return metrics, nil
 }
 
-func (r *groupMetricRepository) GroupHealthSample(
+func (r *groupMetricRepository) GroupHealthSamples(
 	ctx context.Context,
-	groupID int64,
+	groupIDs []int64,
 	since, recentSince time.Time,
-) (service.GroupHealthSample, error) {
-	var (
-		sample                          service.GroupHealthSample
-		requests, upstreamFailures      int64
-		recentRequests, recentSuccesses int64
-	)
-	if err := scanSingleRow(
-		ctx,
-		r.sql,
-		groupHealthSampleQuery,
-		[]any{groupID, since, recentSince},
-		&requests,
-		&upstreamFailures,
-		&sample.P95TTFT,
-		&recentRequests,
-		&recentSuccesses,
-	); err != nil {
-		return service.GroupHealthSample{}, err
+) (map[int64]service.GroupHealthSample, error) {
+	out := make(map[int64]service.GroupHealthSample, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return out, nil
 	}
-	sample.Requests = int(requests)
-	sample.UpstreamFailures = int(upstreamFailures)
-	sample.RecentRequests = int(recentRequests)
-	sample.RecentSuccesses = int(recentSuccesses)
-	return sample, nil
+
+	rows, err := r.sql.QueryContext(ctx, groupHealthSamplesQuery, pq.Array(groupIDs), since, recentSince)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var (
+			groupID                         int64
+			sample                          service.GroupHealthSample
+			requests, upstreamFailures      int64
+			recentRequests, recentSuccesses int64
+		)
+		if err := rows.Scan(
+			&groupID,
+			&requests,
+			&upstreamFailures,
+			&sample.P95TTFT,
+			&recentRequests,
+			&recentSuccesses,
+		); err != nil {
+			return nil, err
+		}
+		sample.Requests = int(requests)
+		sample.UpstreamFailures = int(upstreamFailures)
+		sample.RecentRequests = int(recentRequests)
+		sample.RecentSuccesses = int(recentSuccesses)
+		out[groupID] = sample
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
