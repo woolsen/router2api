@@ -347,8 +347,9 @@ func (a *MetricsAggregator) Start() {
 				select {
 				case <-timer.C:
 					a.runOnce()
-					// 加一分钟再算下一次，避免定时器在整点边界提前触发时原地重排。
-					timer.Reset(durationUntilNextRun(time.Now().Add(time.Minute)))
+					// 若定时器在 :05 边界前几毫秒提前触发，重排后会落在同一个 :05；
+					// 重算是幂等的，不会重复计数。
+					timer.Reset(durationUntilNextRun(time.Now()))
 				case <-a.stopCh:
 					return
 				}
