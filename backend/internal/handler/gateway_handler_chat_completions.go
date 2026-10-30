@@ -437,11 +437,12 @@ func (h *GatewayHandler) handleCCFailoverExhausted(c *gin.Context, lastErr *serv
 	status, errType, message := ccFailoverExhaustedDetails(c, lastErr)
 	if streamStarted && c.Writer != nil && c.Writer.Written() {
 		if service.IsResponseCommitted(c) {
-			// 上游/服务层已经写过终止帧并可能已记录流内错误：只补齐标记，
-			// 不再追加第二帧通用错误。
+			// 上游/服务层已经写过终止帧并可能已记录流内错误：只补齐标记与
+			// OpenAI SSE 客户端等待的 [DONE]，不再追加第二帧通用错误。
 			if len(service.GetOpsStreamErrors(c)) == 0 {
 				service.MarkOpsStreamError(c, errType, message, status)
 			}
+			writeChatCompletionsDone(c)
 			return
 		}
 		// 心跳/首包已提交 200，无法再改状态码；必须补 SSE 错误帧并留下流内失败标记，
@@ -487,7 +488,13 @@ func writeChatCompletionsStreamError(c *gin.Context, status int, errType, messag
 	if err != nil {
 		payload = []byte(`{"error":{"type":"server_error","message":"upstream request failed"}}`)
 	}
-	_, _ = fmt.Fprintf(c.Writer, "data: %s\n\ndata: [DONE]\n\n", payload)
+	_, _ = fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+	writeChatCompletionsDone(c)
+}
+
+// writeChatCompletionsDone 补 OpenAI SSE 客户端等待的 [DONE] 终止帧。
+func writeChatCompletionsDone(c *gin.Context) {
+	_, _ = fmt.Fprint(c.Writer, "data: [DONE]\n\n")
 	if flusher, ok := c.Writer.(http.Flusher); ok {
 		flusher.Flush()
 	}
